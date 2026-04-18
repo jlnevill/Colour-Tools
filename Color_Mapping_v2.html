@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Camera Chromaticity & Gamut Mapping</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+        * { box-sizing: border-box; }
+        :root {
+            --bg0: #070b12;
+            --bg1: #0d1420;
+            --bg2: #131d2e;
+            --bg3: #1a2740;
+            --border: rgba(100,140,200,0.15);
+            --text: #c8d8f0;
+            --muted: #5a7090;
+            --accent: #4a9eff;
+            --accent2: #e8b84a;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'DM Sans', sans-serif;
+        }
+        body {
+            background: var(--bg0);
+            font-family: var(--sans);
+            margin: 0; padding: 16px;
+            min-height: 100vh;
+            color: var(--text);
+        }
+        .app-container { max-width: 1080px; margin: 0 auto; }
+        .header {
+            display: flex; align-items: baseline; gap: 12px;
+            margin-bottom: 4px;
+        }
+        h1 {
+            color: white; font-size: 1.1rem; font-weight: 600;
+            margin: 0; letter-spacing: -0.01em;
+        }
+        .version-badge {
+            background: var(--bg3); border: 1px solid var(--border);
+            color: var(--muted); font-family: var(--mono);
+            font-size: 0.6rem; padding: 2px 8px; border-radius: 20px;
+        }
+        .sub {
+            color: var(--muted); margin-bottom: 12px;
+            font-size: 0.72rem; font-family: var(--mono);
+        }
+        .controls-row {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 10px; align-items: center;
+        }
+        .ctrl-group {
+            display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+        }
+        .ctrl-label {
+            color: var(--muted); font-size: 0.65rem;
+            font-family: var(--mono); white-space: nowrap;
+        }
+        .btn {
+            background: var(--bg2); border: 1px solid var(--border);
+            color: #7a9abf; padding: 5px 13px; border-radius: 20px;
+            font-weight: 500; cursor: pointer; transition: all 0.15s;
+            font-size: 0.72rem; font-family: var(--sans);
+        }
+        .btn.active { background: #1a3a6a; border-color: var(--accent); color: #90c8ff; }
+        .btn:hover:not(.active) { background: var(--bg3); border-color: rgba(100,160,255,0.3); color: var(--text); }
+        .divider { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+        .canvas-card {
+            background: var(--bg1); border: 1px solid var(--border);
+            border-radius: 12px; padding: 10px; margin-bottom: 10px;
+        }
+        .plot-title {
+            color: #8aa8cc; font-size: 0.7rem; font-family: var(--mono);
+            text-align: center; margin: 0 0 8px 0; letter-spacing: 0.03em;
+        }
+        .canvas-wrapper {
+            position: relative; width: 100%;
+            aspect-ratio: 1/1; max-width: 780px; margin: 0 auto;
+        }
+        canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100% !important; height: 100% !important;
+            background: #04070e; border-radius: 8px; cursor: crosshair;
+        }
+        .legend-grid {
+            display: flex; flex-wrap: wrap; gap: 6px;
+            justify-content: center; background: var(--bg1);
+            border: 1px solid var(--border);
+            padding: 8px 10px; border-radius: 10px;
+            margin-bottom: 8px;
+        }
+        .legend-item {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--bg2); border: 1px solid var(--border);
+            padding: 3px 10px 3px 6px; border-radius: 20px;
+            font-size: 0.65rem; font-family: var(--mono); color: var(--text);
+        }
+        .legend-swatch {
+            width: 22px; height: 8px; border-radius: 4px;
+        }
+        .legend-swatch.dashed {
+            background: transparent !important;
+            border-bottom: 2px dashed;
+        }
+        .info-bar {
+            background: var(--bg2); border: 1px solid var(--border);
+            padding: 6px 12px; border-radius: 8px;
+            display: flex; justify-content: space-between;
+            font-size: 0.62rem; color: var(--muted);
+            font-family: var(--mono); flex-wrap: wrap; gap: 6px;
+        }
+        .coord { color: #5ab8ff; }
+        .note {
+            font-size: 0.62rem; color: #c8a040; margin-top: 6px;
+            text-align: center; font-family: var(--mono);
+        }
+        @media (max-width: 640px) {
+            .btn { padding: 4px 9px; font-size: 0.65rem; }
+        }
+        /* ── Analysis panel ── */
+        #analysisPanel {
+            background: var(--bg1); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+        }
+        #analysisPanel h2 {
+            color: #90c8ff; font-size: 0.72rem; font-weight: 600;
+            margin: 0 0 10px 0; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .an-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .an-grid.solo { grid-template-columns: 1fr; }
+        .an-block {
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px 12px;
+        }
+        .an-block h3 {
+            margin: 0 0 7px 0; font-size: 0.65rem; font-weight: 700;
+            font-family: var(--mono); color: #7ab8e8; letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+        .prow { display: flex; align-items: baseline; gap: 7px; margin-bottom: 6px; flex-wrap: wrap; }
+        .plabel { font-family: var(--mono); font-size: 0.68rem; font-weight: 800; width: 14px; flex-shrink: 0; }
+        .pcoords { font-family: var(--mono); font-size: 0.58rem; color: var(--muted); white-space: nowrap; }
+        .pdesc { font-size: 0.64rem; color: var(--text); line-height: 1.5; }
+        .area-section { margin-bottom: 8px; }
+        .area-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .area-bar-bg { flex:1; background: var(--bg3); border-radius: 4px; height: 5px; overflow: hidden; }
+        .area-bar-fg { height: 100%; border-radius: 4px; }
+        .area-pct { font-family: var(--mono); font-size: 0.68rem; font-weight: 700; color: var(--accent2); min-width: 40px; text-align: right; }
+        .area-lbl { font-size: 0.61rem; color: var(--muted); }
+        hr.an-sep { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+        .narrative { font-size: 0.66rem; color: var(--text); line-height: 1.65; }
+        .narrative strong { color: #c8e0ff; }
+        .dtag { display: inline-block; font-family: var(--mono); font-size: 0.57rem;
+            padding: 1px 5px; border-radius: 10px; margin-left: 3px; }
+        .dtag.warm { background:#2a1400; color:#ffaa44; }
+        .dtag.cool { background:#001828; color:#44aaff; }
+        .dtag.green{ background:#001a08; color:#44ff99; }
+        .dtag.neut { background:var(--bg3); color:var(--muted); }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="header">
+        <h1>Camera Chromaticity &amp; Gamut Mapping</h1>
+        <span class="version-badge">v2</span>
+    </div>
+    <div class="sub">CIE 1931 xy Plot · xy Chromaticity Polar Plot · Adobe dng Forward Matrix 2 · John L. Nevill</div>
+
+    <div class="controls-row">
+        <div class="ctrl-group">
+            <span class="ctrl-label">Camera:</span>
+            <button class="btn active" data-preset="all" title="All cameras ON">All</button>
+            <button class="btn" data-preset="none" title="All cameras OFF">None</button>
+            <button class="btn" data-preset="pqiq4" title="Phase One IQ4">IQ4</button>
+            <button class="btn" data-preset="x2dii" title="Hasselblad X2DII">X2DII</button>
+            <button class="btn" data-preset="gfx" title="Fujifilm GFX100II">GFXII</button>
+            <button class="btn" data-preset="z8" title="Nikon Z8">Z8</button>
+            <button class="btn" data-preset="r5m2" title="Canon R5m2">R5II</button>
+            <button class="btn" data-preset="lq3" title="Leica Q3">Q3</button>
+            <button class="btn" data-preset="lm11" title="Leica M11">M11</button>
+            <button class="btn" data-preset="sfpl" title="Sigma fpL">fpL</button>
+            <button class="btn" data-preset="xt5" title="Fujifilm X-T5">X-T5</button>
+            <button class="btn" data-preset="rgriv" title="Ricoh GRIV">GRIV</button>
+        </div>
+        <div class="divider"></div>
+        <div class="ctrl-group">
+            <span class="ctrl-label">White Point:</span>
+            <button class="wp-btn btn active" data-wp="d50">D50</button>
+            <button class="wp-btn btn" data-wp="d65">D65</button>
+        </div>
+    </div>
+    <div class="controls-row">
+        <div class="ctrl-group">
+            <span class="ctrl-label">Target Colorspace:</span>
+            <button class="gamut-btn btn active" data-target="none">None</button>
+            <button class="gamut-btn btn" data-target="srgb">sRGB</button>
+            <button class="gamut-btn btn" data-target="adobe">AdobeRGB</button>
+            <button class="gamut-btn btn" data-target="p3">DCI-P3</button>
+            <button class="gamut-btn btn" data-target="prophoto">ProPhoto</button>
+            <button class="gamut-btn btn" data-target="hasselbladrgb">HasselbladRGB</button>
+            <button class="gamut-btn btn" data-target="hasselbladlstarrgb">HasselbladLstarRGB</button>
+        </div>
+        <div class="divider"></div>
+        <div class="ctrl-group">
+            <span class="ctrl-label">Show:</span>
+            <button class="btn active" id="nativeToggle" title="Toggle Native Camera">Native</button>
+        </div>
+        <div class="divider"></div>
+        <div class="ctrl-group">
+            <span class="ctrl-label">View:</span>
+            <button class="view-btn btn" data-view="polar">Polar</button>
+            <button class="view-btn btn active" data-view="cie">CIE 1931</button>
+        </div>
+        <div class="divider"></div>
+        <div class="ctrl-group">
+            <span class="ctrl-label">Strategy:</span>
+            <button class="strat-btn btn" data-strategy="clip" title="Hard Clip — each primary independently clipped along its WP ray to the boundary; in-gamut primaries untouched; triangle shape distorts asymmetrically">Hard Clip</button>
+            <button class="strat-btn btn active" data-strategy="compress" title="Perceptual Compress — finds the single worst out-of-gamut primary, computes one uniform scale factor that brings the whole triangle inside; triangle shape is fully preserved, just uniformly desaturated">Compress</button>
+            <button class="strat-btn btn" data-strategy="preserve" title="Hue-Preserve — each primary mapped along its constant hue angle (binary search); hue is preserved but triangle corners can land at different boundary points than clip">Hue-Preserve</button>
+            <button class="strat-btn btn" data-strategy="chroma" title="Chroma Map (Perceptual) — proportional gamut-boundary-to-gamut-boundary remap along each primary's hue ray; preserves relative chroma position within the gamut, the closest analogue to ICC perceptual rendering intent">Chroma Map</button>
+        </div>
+
+    </div>
+    <div class="info-bar">
+        <span>Solid fill = native camera gamut · Dashed outline = mapped to target</span>
+        <span class="coord" id="cursorCoord">hover to inspect chromaticity</span>
+    </div>
+    <div class="canvas-card" id="polarCard" style="display:none;">
+        <div class="plot-title" id="plotTitle">xy Chromaticity — Native Gamuts</div>
+        <div class="canvas-wrapper">
+            <canvas id="polarCanvas" width="750" height="750"></canvas>
+        </div>
+    </div>
+
+    <div class="canvas-card" id="cieCard">
+        <div class="plot-title" id="ciePlotTitle">CIE 1931 xy — Native Gamuts</div>
+        <div class="canvas-wrapper" style="aspect-ratio:8/9;">
+            <canvas id="cieCanvas" width="800" height="900"></canvas>
+        </div>
+    </div>
+
+    <div class="legend-grid" id="legendContainer"></div>
+
+    <div id="analysisPanel" style="display:none;">
+        <h2 id="analysisPanelTitle">Analysis</h2>
+        <div id="analysisContent"></div>
+    </div>
+
+    <div class="note">
+        Hard Clip: each primary clipped individually to target boundary · Compress: uniform scale of whole triangle to fit target · Hue-Preserve: constant-hue ray to boundary · Chroma Map: proportional gamut-boundary-to-boundary remap along each primary's hue ray (perceptual — preserves relative chroma position within the gamut)
+        <br>ℹ️ Camera sensor primaries outside the spectral locus are physically real — silicon photodetectors have broad spectral response that produces virtual primaries beyond monochromatic limits.
+        A very small mapped triangle (Compress mode) means the native gamut vastly exceeds the target; the uniform scale needed to bring the most out-of-gamut primary to the boundary crushes the others.
+    </div>
+</div>
+
+<script>
+(function() {
+    // ── Constants ────────────────────────────────────────────────
+    const PLOT_RADIUS_NORM = 0.32; // normalised xy radius shown in plot
+
+    // CIE standard illuminant xy chromaticities
+    const WHITE_POINTS = {
+        d50: { x: 0.34567, y: 0.35850, name: "D50 (5003 K)" },
+        d65: { x: 0.31271, y: 0.32902, name: "D65 (6504 K)" }
+    };
+
+    // ── Bradford chromatic-adaptation matrices ───────────────────
+    // D65↔D50 from ICC specification (standard values)
+    const M_D65_to_D50 = [
+        [ 1.0478112,  0.0228866, -0.0501270],
+        [ 0.0295424,  0.9904844, -0.0170491],
+        [-0.0092345,  0.0150436,  0.7521316]
+    ];
+    const M_D50_to_D65 = [
+        [ 0.9555766, -0.0230393,  0.0631636],
+        [-0.0282897,  1.0099416,  0.0210077],
+        [ 0.0122982, -0.0204830,  1.3299098]
+    ];
+
+    // ── Reference color space primaries (native white point) ─────
+    // sRGB & AdobeRGB are defined at D65
+    const sRGB_D65    = { R:{x:0.6400,y:0.3300}, G:{x:0.3000,y:0.6000}, B:{x:0.1500,y:0.0600} };
+    const AdobeRGB_D65 = { R:{x:0.6400,y:0.3300}, G:{x:0.2100,y:0.7100}, B:{x:0.1500,y:0.0600} };
+    // DCI-P3 is defined at DCI white (0.314, 0.351) but Display P3 uses D65; we use D65 here for display context
+    const P3_D65      = { R:{x:0.6800,y:0.3200}, G:{x:0.2650,y:0.6900}, B:{x:0.1500,y:0.0600} };
+    // ProPhoto (ROMM RGB) is defined at D50
+    const ProPhoto_D50 = { R:{x:0.7347,y:0.2653}, G:{x:0.1596,y:0.8404}, B:{x:0.0366,y:0.0001} };
+        // Hasselblad RGB is defined at D50
+    const HasselbladRGB_D50 = { R:{x:0.6810,y:0.3137}, G:{x:0.2126,y:0.7390}, B:{x:0.1331,y:0.0465} };
+    // Hasselblad Lstar RGB is defined at D50
+    const HasselbladLstarRGB_D50 = { R:{x:0.7563,y:0.2437}, G:{x:0.0979,y:0.9021}, B:{x:0.0186,y:0.0221} };
+
+    const REFERENCE_SPACES = {
+        srgb:     { prim: sRGB_D65,    nativeWP: 'd65', name: "sRGB",      color: "#94a3b8" },
+        adobe:    { prim: AdobeRGB_D65,nativeWP: 'd65', name: "AdobeRGB",  color: "#facc15" },
+        p3:       { prim: P3_D65,      nativeWP: 'd65', name: "DCI-P3/Display-P3", color: "#4ade80" },
+        prophoto: { prim: ProPhoto_D50,nativeWP: 'd50', name: "ProPhoto",  color: "#ec4899" },
+        hasselbladrgb: { prim: HasselbladRGB_D50,nativeWP: 'd50', name: "Hasselbladrgb",  color: "#ec4899" },
+        hasselbladlstarrgb: { prim: HasselbladLstarRGB_D50,nativeWP: 'd50', name: "Hasselbladlstarrgb",  color: "#002200" }
+
+    };
+
+    // ── Camera matrices: DNG ForwardMatrix2 (cam→XYZ_D65) ────────
+    function forwardMatrix(m) {
+        // m is a DNG ForwardMatrix (cam→XYZ, already in forward direction).
+        // Normalise so neutral [1,1,1] produces Y=1: scale by 1/rowY_sum.
+        // cameraPrimaries() will then extract primaries by feeding [1,0,0] etc.
+        const rowY = m[3] + m[4] + m[5];
+        const k = 1.0 / rowY;
+        return m.map(v => v * k);
+    }
+
+    const presetMatrices = {
+        "POIQ4_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4833, 0.3138, 0.1672, 0.2729, 0.6764, 0.0507, 0.105, 0.0031, 0.717]),
+            nativeWP: 'd65',
+            color: "#FF0000", label: "Phaseone IQ4",
+            family: 'pqiq4'
+        },
+        "X2DII_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.5179, 0.2672, 0.1791, 0.2972, 0.6475, 0.0553, 0.1273, 0.0046, 0.6932]),
+            nativeWP: 'd65',
+            color: "#00aa33", label: "Hasselblad X2D II",
+            family: 'x2dii'
+        },
+        "GFX_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4091, 0.3985, 0.1567, 0.2202, 0.7327, 0.0471, 0.0999, 0.0037, 0.7215]),
+            nativeWP: 'd65',
+            color: "#FFFF00", label: "Fujifilm GFX100",
+            family: 'gfx'
+        },
+        "Z8_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4617, 0.3401, 0.1625, 0.2484, 0.7028, 0.0488, 0.0864, 0.0005, 0.7382]),
+            nativeWP: 'd65',
+            color: "#00FF00", label: "Nikon Z8",
+            family: 'z8'
+        },
+        "R5_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4781, 0.2675, 0.2187, 0.2657, 0.6645, 0.0698, 0.1117, 0.0012, 0.7122]),
+            nativeWP: 'd65',
+            color: "#00FFFF", label: "Canon R5 II",
+            family: 'r5m2'
+        },
+        "Leica_Q3_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4494, 0.3624, 0.1525, 0.1886, 0.767, 0.0444, 0.0283, 0.0027, 0.7941]),
+            nativeWP: 'd65',
+            color: "#0000FF", label: "Leica Q3",
+            family: 'lq3'
+        },
+        "Leica_M11_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.508, 0.2591, 0.1972, 0.3058, 0.6312, 0.0629, 0.1387, 0.0012, 0.6852]),
+            nativeWP: 'd65',
+            color: "#800080", label: "Leica M11",
+            family: 'lm11'
+        },
+        "Sigma_FPL_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4314, 0.3632, 0.1697, 0.2255, 0.7227, 0.0517, 0.098, 0.0006, 0.7265]),
+            nativeWP: 'd65',
+            color: "#FF00FF", label: "Sigma fpL",
+            family: 'sfpl'
+        },
+        "XT5_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4016, 0.4015, 0.1612, 0.215, 0.7362, 0.0489, 0.0955, 0.0026, 0.727]),
+            nativeWP: 'd65',
+            color: "#FF69B4", label: "Fujifilm X-T5",
+            family: 'xt5'
+        },
+        "Ricoh_GRIV_FM2": {
+            // Replace with: exiftool -ForwardMatrix2 file.dng  (CalibrationIlluminant2 = D65)
+            m: forwardMatrix([0.4198, 0.3486, 0.1959, 0.2213, 0.7174, 0.0613, 0.0794, 0.0021, 0.7436]),
+            nativeWP: 'd65',
+            color: "#964B00", label: "Ricoh GRIV",
+            family: 'rgriv'
+        }
+    };
+
+    // ── Math helpers ─────────────────────────────────────────────
+    function xyToXYZ(x, y, Y=1) {
+        // Clamp y to a small positive epsilon to prevent XYZ blow-up for sub-locus primaries
+        // (negative-y camera primaries are outside the spectral locus; they're still valid
+        // as virtual primaries, but xyToXYZ with y≤0 produces astronomically large Z values
+        // that corrupt Bradford chromatic adaptation).
+        const yc = Math.max(y, 0.001);
+        return { X:(x/yc)*Y, Y, Z:((1-x-yc)/yc)*Y };
+    }
+    function XYZToxy({X,Y,Z}) {
+        const s = X+Y+Z;
+        return s===0 ? {x:0,y:0} : {x:X/s, y:Y/s};
+    }
+    function applyMat3(M, v) {
+        return {
+            X: M[0][0]*v.X + M[0][1]*v.Y + M[0][2]*v.Z,
+            Y: M[1][0]*v.X + M[1][1]*v.Y + M[1][2]*v.Z,
+            Z: M[2][0]*v.X + M[2][1]*v.Y + M[2][2]*v.Z
+        };
+    }
+
+    // Adapt a set of primaries from their native WP to the current display WP
+    function adaptPrimaries(prim, fromWP, toWP) {
+        if (fromWP === toWP) return prim;
+        const M = fromWP==='d65' && toWP==='d50' ? M_D65_to_D50
+                : fromWP==='d50' && toWP==='d65' ? M_D50_to_D65
+                : null;
+        if (!M) return prim;
+        const result = {};
+        for (const c of ['R','G','B']) {
+            const xyz = xyToXYZ(prim[c].x, prim[c].y, 1);
+            result[c] = XYZToxy(applyMat3(M, xyz));
+        }
+        return result;
+    }
+
+    // Extract primaries from a camera matrix (rows = XYZ, cols = R,G,B)
+    function cameraPrimaries(m) {
+        const M = [[m[0],m[1],m[2]],[m[3],m[4],m[5]],[m[6],m[7],m[8]]];
+        const xfm = (r,g,b) => ({
+            X: M[0][0]*r+M[0][1]*g+M[0][2]*b,
+            Y: M[1][0]*r+M[1][1]*g+M[1][2]*b,
+            Z: M[2][0]*r+M[2][1]*g+M[2][2]*b
+        });
+        return {
+            R: XYZToxy(xfm(1,0,0)),
+            G: XYZToxy(xfm(0,1,0)),
+            B: XYZToxy(xfm(0,0,1)),
+            W: XYZToxy(xfm(1,1,1))
+        };
+    }
+
+    // Build primaries at each camera's native white point
+    // cameraPrimaries() extracts xy from the forward matrix columns (no adaptation yet)
+    const presetPrimNative = {};
+    for (const [id, data] of Object.entries(presetMatrices)) {
+        presetPrimNative[id] = cameraPrimaries(data.m);
+    }
+
+    // ── Gamut helpers ────────────────────────────────────────────
+    function triSign(p1, p2, p3) {
+        return (p1.x-p3.x)*(p2.y-p3.y) - (p2.x-p3.x)*(p1.y-p3.y);
+    }
+    function isInGamut(pt, tri) {
+        const b1 = triSign(pt, tri.R, tri.G) < 0;
+        const b2 = triSign(pt, tri.G, tri.B) < 0;
+        const b3 = triSign(pt, tri.B, tri.R) < 0;
+        return (b1===b2 && b2===b3);
+    }
+
+    // ── Gamut mapping strategies ──────────────────────────────────
+
+    // Utility: find the scale t ∈ [0,1] at which WP + t*(pt-WP) first hits a gamut edge
+    function scaleToGamutBoundary(pt, tri, wp) {
+        const edges = [[tri.R,tri.G],[tri.G,tri.B],[tri.B,tri.R]];
+        let best = null;
+        for (const [p1,p2] of edges) {
+            const dx=pt.x-wp.x, dy=pt.y-wp.y;
+            const ex=p2.x-p1.x, ey=p2.y-p1.y;
+            const denom=dx*ey-dy*ex;
+            if (Math.abs(denom)<1e-12) continue;
+            const fx=p1.x-wp.x, fy=p1.y-wp.y;
+            const t=(fx*ey-fy*ex)/denom;
+            const s=(fx*dy-fy*dx)/denom;
+            if (s>=0 && s<=1 && t>0 && (best===null || t<best)) best=t;
+        }
+        return best; // t where the ray exits the gamut; null if inside
+    }
+
+    // Hard Clip: each primary independently moved to WP→primary ray × gamut boundary
+    // In-gamut primaries untouched. Out-of-gamut primaries clipped individually.
+    // Result: triangle shape can distort significantly.
+    function clipToGamut(xy, tri, wp) {
+        if (isInGamut(xy, tri)) return xy;
+        const t = scaleToGamutBoundary(xy, tri, wp);
+        if (t === null) return xy;
+        return { x: wp.x + t*(xy.x-wp.x), y: wp.y + t*(xy.y-wp.y) };
+    }
+
+    // Perceptual Compress: scale the WHOLE triangle uniformly toward WP until
+    // all three primaries are inside the target. Triangle shape is fully preserved;
+    // this is a global saturation reduction. In-gamut-only triangles are untouched.
+    function compressTriangle(prim, tri, wp) {
+        // Find maximum out-of-gamut scale factor needed across all three primaries
+        let minT = 1.0; // scale factor applied to the whole triangle
+        for (const c of ['R','G','B']) {
+            if (!isInGamut(prim[c], tri)) {
+                const t = scaleToGamutBoundary(prim[c], tri, wp);
+                if (t !== null && t < minT) minT = t;
+            }
+        }
+        if (minT >= 1.0) return prim; // already fully inside
+        const result = {};
+        for (const c of ['R','G','B']) {
+            result[c] = {
+                x: wp.x + minT*(prim[c].x-wp.x),
+                y: wp.y + minT*(prim[c].y-wp.y)
+            };
+        }
+        return result;
+    }
+
+    // Hue-Preserve: each primary moved along its constant-hue ray (angle from WP preserved)
+    // to the gamut boundary. Hue angle is retained, saturation is reduced to fit.
+    // Triangle shape distorts differently from clip (angles vs edge intersections differ).
+    function preserveHueMap(xy, tri, wp) {
+        if (isInGamut(xy, tri)) return xy;
+        const ang = Math.atan2(xy.y-wp.y, xy.x-wp.x);
+        const fullR = Math.sqrt((xy.x-wp.x)**2+(xy.y-wp.y)**2);
+        // Binary search for maximum radius along this hue angle that stays in gamut
+        let lo=0, hi=fullR;
+        for (let i=0; i<40; i++) {
+            const mid=(lo+hi)*0.5;
+            const pt={ x:wp.x+Math.cos(ang)*mid, y:wp.y+Math.sin(ang)*mid };
+            if (isInGamut(pt, tri)) lo=mid; else hi=mid;
+        }
+        return { x:wp.x+Math.cos(ang)*lo, y:wp.y+Math.sin(ang)*lo };
+    }
+
+    // Gamut Compression – Chroma Mapping (Perceptual):
+    // For each primary, find the gamut boundary radius along that primary's hue ray in
+    // BOTH the source native gamut and the target gamut. Remap the primary's chroma
+    // proportionally: r_mapped = r_src * (r_tgt_boundary / r_src_boundary).
+    // This preserves the spatial structure of the gamut — colours that are at 80% of
+    // the source gamut edge land at 80% of the target gamut edge, etc.
+    // In-gamut primaries are proportionally scaled down (not left untouched like clip/compress),
+    // out-of-gamut primaries land exactly on the target boundary.
+    // This is the closest xy-space analogue to ICC perceptual rendering intent.
+    function chromaMap(xy, srcPrim, tgtPrim, wp) {
+        const ang = Math.atan2(xy.y - wp.y, xy.x - wp.x);
+        const rSrc = Math.sqrt((xy.x - wp.x)**2 + (xy.y - wp.y)**2);
+        if (rSrc < 1e-8) return xy; // at white point, no mapping needed
+
+        // Find boundary radius in the source gamut along this hue angle
+        const rSrcBoundary = chromaBoundaryRadius(ang, srcPrim, wp);
+        // Find boundary radius in the target gamut along this hue angle
+        const rTgtBoundary = chromaBoundaryRadius(ang, tgtPrim, wp);
+
+        if (rSrcBoundary === null || rSrcBoundary < 1e-8) return xy;
+        if (rTgtBoundary === null) return xy;
+
+        // Proportional remap: preserve relative position within gamut
+        const rMapped = rSrc * (rTgtBoundary / rSrcBoundary);
+        return {
+            x: wp.x + Math.cos(ang) * rMapped,
+            y: wp.y + Math.sin(ang) * rMapped
+        };
+    }
+
+    // Find the radius at which a ray from wp at given angle exits a gamut triangle.
+    // Returns null if the ray never crosses any edge (degenerate gamut).
+    function chromaBoundaryRadius(ang, tri, wp) {
+        const dx = Math.cos(ang), dy = Math.sin(ang);
+        const edges = [[tri.R, tri.G], [tri.G, tri.B], [tri.B, tri.R]];
+        let best = null;
+        for (const [p1, p2] of edges) {
+            const ex = p2.x - p1.x, ey = p2.y - p1.y;
+            const denom = dx * ey - dy * ex;
+            if (Math.abs(denom) < 1e-12) continue;
+            const fx = p1.x - wp.x, fy = p1.y - wp.y;
+            const t = (fx * ey - fy * ex) / denom;
+            const s = (fx * dy - fy * dx) / denom;
+            if (t > 0 && s >= 0 && s <= 1 && (best === null || t < best)) best = t;
+        }
+        return best;
+    }
+
+    function applyGamutMapping(prim, targetKey, strategy, wp) {
+        const ref = REFERENCE_SPACES[targetKey];
+        if (!ref) return prim;
+        const targetAdapted = adaptPrimaries(ref.prim, ref.nativeWP, selectedWP);
+
+        // Compress operates on the whole triangle at once
+        if (strategy === 'compress') return compressTriangle(prim, targetAdapted, wp);
+
+        // Chroma map: proportional gamut-boundary-to-gamut-boundary remap per primary
+        if (strategy === 'chroma') {
+            const mapped = {};
+            for (const c of ['R', 'G', 'B']) {
+                mapped[c] = chromaMap(prim[c], prim, targetAdapted, wp);
+            }
+            return mapped;
+        }
+
+        // Clip and hue-preserve operate per-primary
+        const mapped = {};
+        for (const c of ['R','G','B']) {
+            if (strategy === 'clip')         mapped[c] = clipToGamut(prim[c], targetAdapted, wp);
+            else if (strategy === 'preserve') mapped[c] = preserveHueMap(prim[c], targetAdapted, wp);
+            else mapped[c] = prim[c];
+        }
+        return mapped;
+    }
+
+    // ── State ─────────────────────────────────────────────────────
+    // selectedCameras: Set of family strings currently active.
+    // Special values 'all' and 'none' are handled by getCamerasInFamily.
+    const ALL_FAMILIES = [...new Set(Object.values(presetMatrices).map(d => d.family))];
+    let selectedCameras = new Set(ALL_FAMILIES); // start with all on
+    let selectedWP     = 'd50';
+    let targetSpace    = 'none';
+    let mappingStrategy= 'compress';
+    let showNative     = true;
+    let currentWP      = WHITE_POINTS.d50;
+    let currentRefPrim = {};  // adapted reference space primaries
+
+    function rebuildRefPrimaries() {
+        for (const [key, ref] of Object.entries(REFERENCE_SPACES)) {
+            currentRefPrim[key] = adaptPrimaries(ref.prim, ref.nativeWP, selectedWP);
+        }
+    }
+
+    function getCamerasInFamily() {
+        return Object.keys(presetMatrices).filter(k =>
+            selectedCameras.has(presetMatrices[k].family));
+    }
+
+    // Sync button active states to current selectedCameras set
+    function syncCameraButtons() {
+        const allOn  = ALL_FAMILIES.every(f => selectedCameras.has(f));
+        const noneOn = selectedCameras.size === 0;
+        document.querySelectorAll('[data-preset]').forEach(b => {
+            const p = b.dataset.preset;
+            if (p === 'all')  b.classList.toggle('active', allOn);
+            else if (p === 'none') b.classList.toggle('active', noneOn);
+            else b.classList.toggle('active', selectedCameras.has(p));
+        });
+    }
+
+    // ── Canvas ────────────────────────────────────────────────────
+    const polarCanvas = document.getElementById('polarCanvas');
+    const ctx         = polarCanvas.getContext('2d');
+    let polarSize=750, center=375, maxRadius=315;
+
+    function updateDimensions() {
+        polarSize = polarCanvas.width;
+        center    = polarSize / 2;
+        maxRadius = polarSize * 0.42;
+    }
+
+    function xyToPolar(x, y) {
+        const dx=x-currentWP.x, dy=y-currentWP.y;
+        return { radius: Math.sqrt(dx*dx+dy*dy), angle: Math.atan2(dy,dx) };
+    }
+    function polarToPixel(radius, angle) {
+        const rN = Math.min(1, radius/PLOT_RADIUS_NORM) * maxRadius;
+        return { x: center + rN*Math.cos(angle), y: center - rN*Math.sin(angle) };
+    }
+
+    // ── HSV background ────────────────────────────────────────────
+    function hsvToRgb(h, s, v) {
+        const i=Math.floor(h*6), f=h*6-i;
+        const p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s);
+        let r,g,b;
+        switch(i%6){
+            case 0:r=v;g=t;b=p;break; case 1:r=q;g=v;b=p;break;
+            case 2:r=p;g=v;b=t;break; case 3:r=p;g=q;b=v;break;
+            case 4:r=t;g=p;b=v;break; default:r=v;g=p;b=q;
+        }
+        return { r:r*255|0, g:g*255|0, b:b*255|0 };
+    }
+
+    function drawBackground() {
+        const img = ctx.getImageData(0, 0, polarSize, polarSize);
+        const d   = img.data;
+        for (let py=0; py<polarSize; py++) {
+            for (let px=0; px<polarSize; px++) {
+                const dx=px-center, dy=center-py;
+                const rN = Math.sqrt(dx*dx+dy*dy) / maxRadius;
+                const i  = (py*polarSize+px)*4;
+                if (rN <= 1.0) {
+                    const ang = Math.atan2(dy, dx);
+                    // rotate so red is at 0° (right)
+                    let hue = ((ang + Math.PI) / (2*Math.PI) + 0.5) % 1.0;
+                    const sat = Math.min(0.88, rN * 1.1);
+                    const val = 0.50 + rN * 0.35;
+                    const {r,g,b} = hsvToRgb(hue, sat, val);
+                    d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255;
+                } else {
+                    d[i]=7; d[i+1]=11; d[i+2]=18; d[i+3]=255;
+                }
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+    }
+
+    // ── Grid ──────────────────────────────────────────────────────
+    function drawGrid() {
+        // Concentric rings
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.lineWidth   = 0.8;
+        ctx.font = "8px 'JetBrains Mono', monospace";
+        for (let r=0.05; r<=PLOT_RADIUS_NORM; r+=0.05) {
+            const px = (r/PLOT_RADIUS_NORM)*maxRadius;
+            ctx.beginPath();
+            ctx.arc(center, center, px, 0, 2*Math.PI);
+            ctx.stroke();
+            ctx.fillStyle="rgba(255,255,255,0.7)";
+            ctx.fillText(`${Math.round(r*1000)/10}`, center+px-18, center-3);
+        }
+        // Radial spokes
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth   = 0.6;
+        const hueLabels = {0:"Red",60:"Yellow",120:"Green",180:"Cyan",240:"Blue",300:"Magenta"};
+        for (let ang=0; ang<360; ang+=30) {
+            const rad = ang*Math.PI/180;
+            ctx.beginPath();
+            ctx.moveTo(center, center);
+            ctx.lineTo(center+maxRadius*Math.cos(rad), center-maxRadius*Math.sin(rad));
+            ctx.stroke();
+            if (ang%60===0 && hueLabels[ang]) {
+                const lx = center+(maxRadius+16)*Math.cos(rad);
+                const ly = center-(maxRadius+16)*Math.sin(rad);
+                ctx.fillStyle="rgba(255,255,255,0.7)";
+                ctx.font="8px 'JetBrains Mono', monospace";
+                const label = hueLabels[ang];
+                ctx.fillText(label, lx - label.length*2.5, ly+3);
+            }
+        }
+    }
+
+    // ── Drawing helpers ───────────────────────────────────────────
+    function primToPixels(prim) {
+        return ['R','G','B'].map(c => {
+            const p = xyToPolar(prim[c].x, prim[c].y);
+            return polarToPixel(p.radius, p.angle);
+        });
+    }
+
+    function drawTrianglePoly(pts, color, lineWidth, dashed, fillAlpha=0) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        ctx.lineTo(pts[1].x, pts[1].y);
+        ctx.lineTo(pts[2].x, pts[2].y);
+        ctx.closePath();
+        if (fillAlpha > 0) {
+            ctx.fillStyle = color;
+            ctx.globalAlpha = fillAlpha;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = lineWidth;
+        ctx.setLineDash(dashed ? [7,5] : []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function drawPrimaryDots(prim, color) {
+        const labels = ['R','G','B'];
+        for (let i=0; i<3; i++) {
+            const p = xyToPolar(prim[labels[i]].x, prim[labels[i]].y);
+            const px = polarToPixel(p.radius, p.angle);
+            ctx.beginPath();
+            ctx.arc(px.x, px.y, 4, 0, 2*Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.fillStyle = "white";
+            ctx.font = "bold 9px 'JetBrains Mono', monospace";
+            ctx.shadowBlur = 3; ctx.shadowColor = "black";
+            ctx.fillText(labels[i], px.x+5, px.y-2);
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    // ── Main draw ─────────────────────────────────────────────────
+    function draw() {
+        if (polarSize===0) return;
+        drawBackground();
+        drawGrid();
+
+        // Clip all triangle/primary drawing to the circular plot boundary.
+        // Primaries outside the spectral locus can be far outside the plot;
+        // without clipping their triangle edges slash across the entire canvas.
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(center, center, maxRadius, 0, 2*Math.PI);
+        ctx.clip();
+
+        // Reference space triangles (faint outlines)
+        const refColors = { srgb:"rgba(148,163,184,0.45)", adobe:"rgba(250,204,21,0.45)", p3:"rgba(74,222,128,0.45)", prophoto:"rgba(236,72,153,0.45)", hasselbladrgb:"rgba(236,72,153,0.45)",hasselbladlstarrgb:"rgba(236,72,153,0.45)" };
+        
+        for (const [key, col] of Object.entries(refColors)) {
+            drawTrianglePoly(primToPixels(currentRefPrim[key]), col, 1.0, true);
+        }
+
+        // Target space highlight
+        if (targetSpace !== 'none' && currentRefPrim[targetSpace]) {
+            drawTrianglePoly(primToPixels(currentRefPrim[targetSpace]),
+                REFERENCE_SPACES[targetSpace].color, 2.0, true);
+        }
+
+        // Camera gamuts
+        for (const id of getCamerasInFamily()) {
+            const primNative = presetPrimNative[id];
+            const primWP  = adaptPrimaries(primNative, presetMatrices[id].nativeWP, selectedWP);
+            const color   = presetMatrices[id].color;
+
+            if (showNative) {
+                drawTrianglePoly(primToPixels(primWP), color, 1.8, false, 0.10);
+                drawPrimaryDots(primWP, color);
+            }
+
+            if (targetSpace !== 'none') {
+                const mappedPrim = applyGamutMapping(primWP, targetSpace, mappingStrategy, currentWP);
+                drawTrianglePoly(primToPixels(mappedPrim), color, 1.6, true, 0);
+                if (!showNative) drawPrimaryDots(mappedPrim, color);
+            }
+        }
+
+        ctx.restore(); // end circular clip
+
+        // White point marker
+        ctx.beginPath();
+        ctx.arc(center, center, 9, 0, 2*Math.PI);
+        ctx.fillStyle="#ffffff"; ctx.fill();
+        ctx.beginPath();
+        ctx.arc(center, center, 6, 0, 2*Math.PI);
+        ctx.fillStyle="#facc15"; ctx.fill();
+        ctx.strokeStyle="white"; ctx.lineWidth=1.5; ctx.stroke();
+        ctx.fillStyle="white";
+        ctx.font="bold 10px 'JetBrains Mono', monospace";
+        ctx.shadowBlur=2; ctx.shadowColor="black";
+        ctx.fillText(selectedWP.toUpperCase(), center+12, center-8);
+        ctx.shadowBlur=0;
+
+        // Axis labels (correct xy labels, not CIELab)
+        ctx.fillStyle="rgba(255,255,255,0.65)";
+        ctx.font="8px 'JetBrains Mono', monospace";
+        ctx.fillText("← x decreases", center-maxRadius+10, center+10);
+        ctx.fillText("x increases →", center+maxRadius-82, center+10);
+        ctx.fillText("↑ y increases", center-35, center-maxRadius+18);
+        ctx.fillText("y decreases ↓", center-35, center+maxRadius-8);
+    }
+
+    // ── CIE 1931 canvas ───────────────────────────────────────────
+    const cieCanvas = document.getElementById('cieCanvas');
+    const cieCtx    = cieCanvas.getContext('2d');
+    let cieW = 800, cieH = 900;
+    // Standard CIE 1931 xy plot bounds
+    const CIE_X0=0.00, CIE_X1=0.80, CIE_Y0=0.00, CIE_Y1=0.90;
+    let ciePad = { l:52, r:16, t:16, b:44 }; // pixels
+
+    // CIE 1931 2° spectral locus (nm → xy), sampled at key wavelengths
+    const LOCUS = [
+        [380,0.1741,0.0050],[385,0.1740,0.0050],[390,0.1738,0.0049],[395,0.1736,0.0049],
+        [400,0.1733,0.0048],[405,0.1730,0.0048],[410,0.1726,0.0048],[415,0.1721,0.0048],
+        [420,0.1714,0.0051],[425,0.1703,0.0058],[430,0.1689,0.0069],[435,0.1669,0.0086],
+        [440,0.1644,0.0109],[445,0.1611,0.0138],[450,0.1566,0.0177],[455,0.1510,0.0227],
+        [460,0.1440,0.0297],[465,0.1355,0.0399],[470,0.1241,0.0578],[475,0.1096,0.0868],
+        [480,0.0913,0.1327],[485,0.0687,0.2007],[490,0.0454,0.2950],[495,0.0235,0.4127],
+        [500,0.0082,0.5384],[505,0.0039,0.6548],[510,0.0139,0.7502],[515,0.0389,0.8120],
+        [520,0.0743,0.8338],[525,0.1142,0.8262],[530,0.1547,0.8059],[535,0.1929,0.7816],
+        [540,0.2296,0.7543],[545,0.2658,0.7243],[550,0.3016,0.6923],[555,0.3373,0.6589],
+        [560,0.3731,0.6245],[565,0.4087,0.5896],[570,0.4441,0.5547],[575,0.4788,0.5202],
+        [580,0.5125,0.4866],[585,0.5448,0.4544],[590,0.5752,0.4242],[595,0.6029,0.3965],
+        [600,0.6270,0.3725],[605,0.6482,0.3514],[610,0.6658,0.3340],[615,0.6801,0.3197],
+        [620,0.6915,0.3083],[625,0.7006,0.2993],[630,0.7079,0.2920],[635,0.7140,0.2859],
+        [640,0.7190,0.2809],[645,0.7230,0.2770],[650,0.7260,0.2740],[655,0.7283,0.2717],
+        [670,0.7300,0.2700],[680,0.7305,0.2695],[690,0.7308,0.2693],[700,0.7347,0.2653],
+        [705,0.7347,0.2653],[710,0.7347,0.2653],[720,0.7347,0.2653],[780,0.7347,0.2653]
+    ];
+
+    function cieToPixel(x, y) {
+        const pw = cieW - ciePad.l - ciePad.r;
+        const ph = cieH - ciePad.t - ciePad.b;
+        return {
+            x: ciePad.l + (x - CIE_X0) / (CIE_X1 - CIE_X0) * pw,
+            y: ciePad.t + (1 - (y - CIE_Y0) / (CIE_Y1 - CIE_Y0)) * ph
+        };
+    }
+    function pixelToCie(px, py) {
+        const pw = cieW - ciePad.l - ciePad.r;
+        const ph = cieH - ciePad.t - ciePad.b;
+        return {
+            x: CIE_X0 + (px - ciePad.l) / pw * (CIE_X1 - CIE_X0),
+            y: CIE_Y0 + (1 - (py - ciePad.t) / ph) * (CIE_Y1 - CIE_Y0)
+        };
+    }
+
+    function drawCieBackground() {
+        cieCtx.fillStyle = '#04070e';
+        cieCtx.fillRect(0, 0, cieW, cieH);
+
+        // Build locus path for clipping
+        cieCtx.save();
+        cieCtx.beginPath();
+        const first = cieToPixel(LOCUS[0][1], LOCUS[0][2]);
+        cieCtx.moveTo(first.x, first.y);
+        for (let i=1; i<LOCUS.length; i++) {
+            const p = cieToPixel(LOCUS[i][1], LOCUS[i][2]);
+            cieCtx.lineTo(p.x, p.y);
+        }
+        // Close with purple line of purples (straight back to 380nm)
+        cieCtx.closePath();
+        cieCtx.clip();
+
+        // Fill interior with spectral colour approximation using HSV mapping
+        // Map each pixel's position in the locus to a hue
+        const img = cieCtx.getImageData(0, 0, cieW, cieH);
+        const d = img.data;
+        const pw = cieW - ciePad.l - ciePad.r;
+        const ph = cieH - ciePad.t - ciePad.b;
+        for (let py=0; py<cieH; py++) {
+            for (let px=0; px<cieW; px++) {
+                const xy = pixelToCie(px+0.5, py+0.5);
+                // Map xy → hue using angle from D65 white point (0.3127, 0.3290)
+                const ang = Math.atan2(xy.y - 0.3290, xy.x - 0.3127);
+                let hue = ((ang + Math.PI) / (2*Math.PI) + 0.5) % 1.0;
+                // Saturation = distance from white point, normalised
+                const dist = Math.sqrt((xy.x-0.3127)**2 + (xy.y-0.3290)**2);
+                const sat = Math.min(1.0, dist / 0.35);
+                const val = 0.55 + sat * 0.3;
+                const {r,g,b} = hsvToRgb(hue, sat*0.9, val);
+                const i = (py*cieW+px)*4;
+                d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255;
+            }
+        }
+        cieCtx.putImageData(img, 0, 0);
+        cieCtx.restore();
+    }
+
+    function drawCieLocus() {
+        // Spectral locus outline
+        cieCtx.beginPath();
+        const first = cieToPixel(LOCUS[0][1], LOCUS[0][2]);
+        cieCtx.moveTo(first.x, first.y);
+        for (let i=1; i<LOCUS.length; i++) {
+            const p = cieToPixel(LOCUS[i][1], LOCUS[i][2]);
+            cieCtx.lineTo(p.x, p.y);
+        }
+        cieCtx.closePath();
+        cieCtx.strokeStyle = 'rgba(255,255,255,0.6)';
+        cieCtx.lineWidth = 1.2;
+        cieCtx.stroke();
+
+        // Wavelength labels at key points
+        cieCtx.font = "8px 'JetBrains Mono', monospace";
+        cieCtx.fillStyle = 'rgba(255,255,255,0.7)';
+        const labels = [460,470,480,490,500,510,520,540,560,580,600,620,660,700];
+        for (const [nm,x,y] of LOCUS) {
+            if (!labels.includes(nm)) continue;
+            const p = cieToPixel(x, y);
+            cieCtx.beginPath();
+            cieCtx.arc(p.x, p.y, 2, 0, 2*Math.PI);
+            cieCtx.fillStyle = 'rgba(255,255,255,0.7)';
+            cieCtx.fill();
+            // Label offset: push outward from centre of locus
+            const cx = 0.33, cy = 0.35;
+            const offScale = 12;
+            const ox = (x-cx)/Math.sqrt((x-cx)**2+(y-cy)**2)*offScale;
+            const oy = (y-cy)/Math.sqrt((x-cx)**2+(y-cy)**2)*offScale;
+            cieCtx.fillStyle = 'rgba(255,255,255,0.65)';
+            cieCtx.fillText(nm, p.x+ox-8, p.y-oy+3);
+        }
+    }
+
+    function drawCieGrid() {
+        cieCtx.font = "9px 'JetBrains Mono', monospace";
+
+        // Vertical grid lines: x = 0.0, 0.1, ... 0.8
+        for (let xi = 0; xi <= 8; xi++) {
+            const x = xi * 0.1;
+            const px = cieToPixel(x, 0).x;
+            cieCtx.strokeStyle = xi === 0 ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.10)';
+            cieCtx.lineWidth   = xi === 0 ? 0.8 : 0.5;
+            cieCtx.beginPath();
+            cieCtx.moveTo(px, ciePad.t);
+            cieCtx.lineTo(px, cieH - ciePad.b);
+            cieCtx.stroke();
+            cieCtx.fillStyle = 'rgba(255,255,255,0.6)';
+            cieCtx.fillText(x.toFixed(1), px - 8, cieH - ciePad.b + 13);
+        }
+
+        // Horizontal grid lines: y = 0.0, 0.1, ... 0.9
+        for (let yi = 0; yi <= 9; yi++) {
+            const y = yi * 0.1;
+            const py = cieToPixel(0, y).y;
+            cieCtx.strokeStyle = yi === 0 ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.10)';
+            cieCtx.lineWidth   = yi === 0 ? 0.8 : 0.5;
+            cieCtx.beginPath();
+            cieCtx.moveTo(ciePad.l, py);
+            cieCtx.lineTo(cieW - ciePad.r, py);
+            cieCtx.stroke();
+            cieCtx.fillStyle = 'rgba(255,255,255,0.6)';
+            cieCtx.fillText(y.toFixed(1), 2, py + 3);
+        }
+
+        // Axis labels
+        cieCtx.fillStyle = 'rgba(255,255,255,0.75)';
+        cieCtx.font = "10px 'JetBrains Mono', monospace";
+        cieCtx.fillText('x', cieW - ciePad.r - 6, cieH - ciePad.b + 13);
+        cieCtx.fillText('y', ciePad.l - 14, ciePad.t + 8);
+    }
+
+    function ciePrimToPixels(prim) {
+        return ['R','G','B'].map(c => cieToPixel(prim[c].x, prim[c].y));
+    }
+
+    function drawCieTriangle(pts, color, lineWidth, dashed, fillAlpha=0) {
+        cieCtx.beginPath();
+        cieCtx.moveTo(pts[0].x, pts[0].y);
+        cieCtx.lineTo(pts[1].x, pts[1].y);
+        cieCtx.lineTo(pts[2].x, pts[2].y);
+        cieCtx.closePath();
+        if (fillAlpha > 0) {
+            cieCtx.fillStyle = color;
+            cieCtx.globalAlpha = fillAlpha;
+            cieCtx.fill();
+            cieCtx.globalAlpha = 1;
+        }
+        cieCtx.strokeStyle = color;
+        cieCtx.lineWidth = lineWidth;
+        cieCtx.setLineDash(dashed ? [7,5] : []);
+        cieCtx.stroke();
+        cieCtx.setLineDash([]);
+    }
+
+    function drawCiePrimaryDots(prim, color) {
+        const labels = ['R','G','B'];
+        for (let i=0; i<3; i++) {
+            const p = cieToPixel(prim[labels[i]].x, prim[labels[i]].y);
+            cieCtx.beginPath();
+            cieCtx.arc(p.x, p.y, 4, 0, 2*Math.PI);
+            cieCtx.fillStyle = color;
+            cieCtx.fill();
+            cieCtx.fillStyle = 'white';
+            cieCtx.font = "bold 9px 'JetBrains Mono', monospace";
+            cieCtx.shadowBlur = 3; cieCtx.shadowColor = 'black';
+            cieCtx.fillText(labels[i], p.x+5, p.y-2);
+            cieCtx.shadowBlur = 0;
+        }
+    }
+
+    function drawCie() {
+        if (cieW === 0) return;
+        drawCieBackground();
+        drawCieGrid();
+        drawCieLocus();
+
+        // Reference space triangles (faint) — unclipped so full triangles show
+        const refColors = { srgb:'rgba(148,163,184,0.45)', adobe:'rgba(250,204,21,0.45)', p3:'rgba(74,222,128,0.45)', prophoto:'rgba(236,72,153,0.45)', hasselbladrgb:`rgba(236,72,153,0.45)`,hasselbladlstarrgb:`rgba(236,72,153,0.45)` };
+        for (const [key, col] of Object.entries(refColors)) {
+            drawCieTriangle(ciePrimToPixels(currentRefPrim[key]), col, 1.0, true);
+        }
+
+        // Target highlight
+        if (targetSpace !== 'none' && currentRefPrim[targetSpace]) {
+            drawCieTriangle(ciePrimToPixels(currentRefPrim[targetSpace]),
+                REFERENCE_SPACES[targetSpace].color, 2.0, true);
+        }
+
+        // Camera gamuts — fully unclipped so sub-locus B primaries plot correctly
+        for (const id of getCamerasInFamily()) {
+            const primNative = presetPrimNative[id];
+            const primWP  = adaptPrimaries(primNative, presetMatrices[id].nativeWP, selectedWP);
+            const color   = presetMatrices[id].color;
+
+            if (showNative) {
+                drawCieTriangle(ciePrimToPixels(primWP), color, 1.8, false, 0.10);
+                drawCiePrimaryDots(primWP, color);
+            }
+
+            if (targetSpace !== 'none') {
+                const mappedPrim = applyGamutMapping(primWP, targetSpace, mappingStrategy, currentWP);
+                drawCieTriangle(ciePrimToPixels(mappedPrim), color, 1.6, true, 0);
+                if (!showNative) drawCiePrimaryDots(mappedPrim, color);
+            }
+        }
+
+        // White point marker (drawn last, always on top)
+        const wp = cieToPixel(currentWP.x, currentWP.y);
+        cieCtx.beginPath();
+        cieCtx.arc(wp.x, wp.y, 7, 0, 2*Math.PI);
+        cieCtx.fillStyle = '#ffffff'; cieCtx.fill();
+        cieCtx.beginPath();
+        cieCtx.arc(wp.x, wp.y, 5, 0, 2*Math.PI);
+        cieCtx.fillStyle = '#facc15'; cieCtx.fill();
+        cieCtx.strokeStyle = 'white'; cieCtx.lineWidth = 1.5; cieCtx.stroke();
+        cieCtx.fillStyle = 'white';
+        cieCtx.font = "bold 9px 'JetBrains Mono', monospace";
+        cieCtx.shadowBlur = 2; cieCtx.shadowColor = 'black';
+        cieCtx.fillText(selectedWP.toUpperCase(), wp.x+9, wp.y-6);
+        cieCtx.shadowBlur = 0;
+    }
+
+    // ── View toggle ───────────────────────────────────────────────
+    let currentView = 'cie'; // 'polar' | 'cie'
+
+    function setView(v) {
+        currentView = v;
+        document.querySelectorAll('.view-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.view===v));
+        document.getElementById('polarCard').style.display = v==='polar' ? '' : 'none';
+        document.getElementById('cieCard').style.display   = v==='cie'   ? '' : 'none';
+        if (v === 'cie') {
+            // Trigger resize/draw for CIE canvas on first show
+            handleCieResize();
+        }
+    }
+
+    document.querySelectorAll('.view-btn').forEach(b =>
+        b.addEventListener('click', () => setView(b.dataset.view)));
+
+    // ── CIE resize ───────────────────────────────────────────────
+    function handleCieResize() {
+        const wrapper = document.querySelector('#cieCard .canvas-wrapper');
+        const rect = wrapper.getBoundingClientRect();
+        if (rect.width === 0) return;
+        cieCanvas.width  = Math.round(rect.width);
+        cieCanvas.height = Math.round(rect.height);
+        cieW = cieCanvas.width;
+        cieH = cieCanvas.height;
+        // Scale padding proportionally
+        const scale = cieW / 800;
+        ciePad = { l: Math.round(52*scale), r: Math.round(16*scale), t: Math.round(16*scale), b: Math.round(44*scale) };
+        drawCie();
+    }
+
+    new ResizeObserver(() => {
+        if (currentView === 'polar') handleResize();
+        else handleCieResize();
+    }).observe(document.querySelector('#cieCard .canvas-wrapper'));
+
+    // ── CIE cursor ────────────────────────────────────────────────
+    cieCanvas.addEventListener('mousemove', e => {
+        const rect  = cieCanvas.getBoundingClientRect();
+        const scale = cieCanvas.width / rect.width;
+        const mx = (e.clientX - rect.left) * scale;
+        const my = (e.clientY - rect.top)  * scale;
+        const xy = pixelToCie(mx, my);
+        const inBounds = xy.x >= CIE_X0 && xy.x <= CIE_X1 && xy.y >= CIE_Y0 && xy.y <= CIE_Y1;
+        const txt = inBounds
+            ? `xy (${xy.x.toFixed(4)}, ${xy.y.toFixed(4)})`
+            : `outside plot`;
+        document.getElementById('cursorCoord').textContent = txt;
+    });
+
+    
+    // ── Analysis engine ───────────────────────────────────────────
+
+    // Shoelace formula: signed area of triangle in xy space
+    function triangleArea(p) {
+        return Math.abs(
+            (p.R.x*(p.G.y - p.B.y) + p.G.x*(p.B.y - p.R.y) + p.B.x*(p.R.y - p.G.y)) / 2
+        );
+    }
+
+    // Hue angle from a reference white point (degrees, 0=red direction)
+    function hueAngle(pt, wp) {
+        return ((Math.atan2(pt.y - wp.y, pt.x - wp.x) * 180 / Math.PI) + 360) % 360;
+    }
+
+    // Saturation: chroma distance from WP in xy
+    function chromaDist(pt, wp) {
+        return Math.sqrt((pt.x-wp.x)**2 + (pt.y-wp.y)**2);
+    }
+
+    // Angular difference: how much has hue rotated (positive = clockwise/warmer, negative = CCW/cooler)
+    function angleDiff(a, b) {
+        let d = a - b;
+        if (d > 180) d -= 360;
+        if (d < -180) d += 360;
+        return d;
+    }
+
+    // Describe a primary shift relative to a reference in natural language
+    // primary = 'R'|'G'|'B', camPt = {x,y}, refPt = {x,y}, wp = current WP
+    function describePrimaryShift(primary, camPt, refPt, wp) {
+        const camHue  = hueAngle(camPt, wp);
+        const refHue  = hueAngle(refPt, wp);
+        const camSat  = chromaDist(camPt, wp);
+        const refSat  = chromaDist(refPt, wp);
+        const dHue    = angleDiff(camHue, refHue); // cam minus ref
+        const dSat    = camSat - refSat;
+        const dX      = camPt.x - refPt.x;
+        const dY      = camPt.y - refPt.y;
+
+        // Threshold: ignore sub-0.5° hue and sub-0.002 chroma changes
+        const hueInsig = Math.abs(dHue) < 0.5;
+        const satInsig = Math.abs(dSat) < 0.002;
+
+        let hueDesc = '', satDesc = '', tag = 'neut';
+
+        if (!hueInsig) {
+            if (primary === 'R') {
+                // Red hue space: positive dHue (clockwise) = more orange/warmer; negative = more purple/cooler
+                hueDesc = dHue > 0 ? 'shifted orange/warmer' : 'shifted purple/cooler';
+                tag = dHue > 0 ? 'warm' : 'cool';
+            } else if (primary === 'G') {
+                // Green hue space: positive dHue = shifted yellow-green/warmer; negative = shifted cyan/cooler
+                hueDesc = dHue > 0 ? 'shifted yellow-green/warmer' : 'shifted cyan/cooler';
+                tag = dHue > 0 ? 'warm' : 'cool';
+            } else {
+                // Blue hue space: positive dHue = shifted cyan/greener; negative = shifted violet/redder
+                hueDesc = dHue > 0 ? 'shifted cyan/greener' : 'shifted violet/redder';
+                tag = dHue > 0 ? 'green' : 'cool';
+            }
+        }
+
+        if (!satInsig) {
+            satDesc = dSat > 0 ? 'more saturated' : 'less saturated';
+        }
+
+        const parts = [hueDesc, satDesc].filter(Boolean);
+        const desc = parts.length ? parts.join(', ') : 'essentially identical';
+
+        return {
+            desc, tag,
+            dHue: dHue.toFixed(1), dSat: (dSat*1000).toFixed(1),
+            dX: (dX*1000).toFixed(1), dY: (dY*1000).toFixed(1),
+            camXY: `(${camPt.x.toFixed(4)}, ${camPt.y.toFixed(4)})`,
+            refXY: `(${refPt.x.toFixed(4)}, ${refPt.y.toFixed(4)})`,
+        };
+    }
+
+    // Build primary shift HTML for one camera vs a reference set of primaries
+    function primaryCompareHTML(camPrim, refPrim, camLabel, refLabel, wp, camColor) {
+        let html = `<div class="an-block">
+            <h3 style="border-left:3px solid ${camColor};padding-left:6px;">${camLabel} vs ${refLabel}</h3>`;
+
+        for (const c of ['R','G','B']) {
+            const info = describePrimaryShift(c, camPrim[c], refPrim[c], wp);
+            const colors = {R:'#ff5555',G:'#44dd88',B:'#4499ff'};
+            const names  = {R:'Red','G':'Green',B:'Blue'};
+            html += `<div class="prow">
+                <span class="plabel" style="color:${colors[c]}">${c}</span>
+                <span class="pcoords">${info.camXY}</span>
+                <span class="pdesc">
+                    <span class="dtag ${info.tag}">${info.desc}</span>
+                    &nbsp;Δhue <strong>${info.dHue >= 0 ? '+' : ''}${info.dHue}°</strong>
+                    · Δchroma <strong>${info.dSat >= 0 ? '+' : ''}${info.dSat}‰</strong>
+                    · Δx <strong>${info.dX >= 0 ? '+' : ''}${info.dX}‰</strong>
+                    · Δy <strong>${info.dY >= 0 ? '+' : ''}${info.dY}‰</strong>
+                </span>
+            </div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    // Build area comparison HTML for single camera vs target
+    function areaCompareHTML(camPrim, targetPrim, mappedPrim, camLabel, targetLabel, camColor, targetColor, wp) {
+        const camArea     = triangleArea(camPrim);
+        const targetArea  = triangleArea(targetPrim);
+        const mappedArea  = mappedPrim ? triangleArea(mappedPrim) : null;
+        const ratio       = (camArea / targetArea * 100).toFixed(1);
+        const mappedRatio = mappedPrim ? (mappedArea / targetArea * 100).toFixed(1) : null;
+        const larger      = camArea >= targetArea;
+
+        const barW = Math.min(100, parseFloat(ratio));
+        const targetBarW = Math.min(100, (targetArea/Math.max(camArea,targetArea)*100));
+
+        let html = `<div class="an-block">
+            <h3>Gamut Area — ${camLabel}</h3>
+            <div class="area-section">
+                <div class="area-lbl">Native gamut vs ${targetLabel}</div>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:60px;color:${camColor}">${camLabel}</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${barW}%;background:${camColor}"></div></div>
+                    <span class="area-pct">${ratio}%</span>
+                </div>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:60px;color:${targetColor}">${targetLabel}</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:100%;background:${targetColor}"></div></div>
+                    <span class="area-pct">100%</span>
+                </div>`;
+
+        if (mappedRatio !== null) {
+            html += `<div class="area-row">
+                    <span class="area-lbl" style="min-width:60px;color:${camColor}">Mapped</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${Math.min(100,parseFloat(mappedRatio))}%;background:${camColor};opacity:0.5"></div></div>
+                    <span class="area-pct">${mappedRatio}%</span>
+                </div>`;
+        }
+
+        html += `</div>
+            <hr class="an-sep">
+            <div class="narrative">
+                The <strong>${camLabel}</strong> native gamut covers <strong>${ratio}%</strong> of the ${targetLabel} gamut area
+                (xy space — proportional to perceptual colour volume).
+                ${larger
+                    ? `It is <strong>${(parseFloat(ratio)-100).toFixed(1)}%</strong> larger, meaning it encodes colours <em>beyond</em> ${targetLabel}.`
+                    : `It falls short by <strong>${(100-parseFloat(ratio)).toFixed(1)}%</strong>; some ${targetLabel} colours cannot be natively encoded.`}
+                ${mappedRatio !== null ? `After ${mappingStrategy} mapping the retained area is <strong>${mappedRatio}%</strong> of target.` : ''}
+            </div>
+        </div>`;
+        return html;
+    }
+
+    function buildLegend() {
+        const container = document.getElementById('legendContainer');
+        container.innerHTML = '';
+        const add = (color, label, dashed=false, italic=false) => {
+            const el = document.createElement('div');
+            el.className = 'legend-item';
+            const sw = document.createElement('div');
+            sw.className = 'legend-swatch' + (dashed ? ' dashed' : '');
+            sw.style.background = dashed ? 'transparent' : color;
+            if (dashed) sw.style.borderBottomColor = color;
+            el.appendChild(sw);
+            const span = document.createElement('span');
+            span.textContent = label;
+            if (italic) span.style.opacity = '0.7';
+            el.appendChild(span);
+            container.appendChild(el);
+        };
+
+        if (targetSpace !== 'none') {
+            add(REFERENCE_SPACES[targetSpace].color, `▶ Target: ${REFERENCE_SPACES[targetSpace].name}`);
+            add('#888', `  Dashed = mapped (${mappingStrategy})`, true);
+        }
+
+        // reference spaces
+        for (const [key, ref] of Object.entries(REFERENCE_SPACES)) {
+            add(ref.color, `${ref.name} (ref)`, true, true);
+        }
+
+        // cameras
+        for (const id of getCamerasInFamily()) {
+            add(presetMatrices[id].color, presetMatrices[id].label);
+        }
+        add('#facc15', `WP: ${WHITE_POINTS[selectedWP].name}`);
+    }
+
+    function buildAnalysis() {
+        const panel   = document.getElementById('analysisPanel');
+        const content = document.getElementById('analysisContent');
+        const title   = document.getElementById('analysisPanelTitle');
+        const cameras = getCamerasInFamily();
+        const wp      = currentWP;
+
+        // ── Mode detection ──────────────────────────────────────────
+        const singleCamWithTarget = cameras.length === 1 && targetSpace !== 'none';
+        const twoCams             = cameras.length === 2;
+
+        if (!singleCamWithTarget && !twoCams) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = '';
+
+        if (singleCamWithTarget) {
+            // ── Single camera + target mode ──────────────────────────
+            const id            = cameras[0];
+            const data          = presetMatrices[id];
+            const camPrim       = adaptPrimaries(presetPrimNative[id], data.nativeWP, selectedWP);
+            const ref           = REFERENCE_SPACES[targetSpace];
+            const targetPrim    = adaptPrimaries(ref.prim, ref.nativeWP, selectedWP);
+            const mappedPrim    = applyGamutMapping(camPrim, targetSpace, mappingStrategy, wp);
+
+            title.textContent = `Analysis — ${data.label} × ${ref.name}`;
+
+            const areaBlock  = areaCompareHTML(camPrim, targetPrim, mappedPrim,
+                                   data.label, ref.name, data.color, ref.color, wp);
+            const shiftBlock = primaryCompareHTML(camPrim, targetPrim,
+                                   data.label, ref.name, wp, data.color);
+
+            content.innerHTML = `<div class="an-grid">${areaBlock}${shiftBlock}</div>`;
+
+        } else {
+            // ── Two camera comparison mode ───────────────────────────
+            const [idA, idB] = cameras;
+            const dataA = presetMatrices[idA], dataB = presetMatrices[idB];
+            const primA = adaptPrimaries(presetPrimNative[idA], dataA.nativeWP, selectedWP);
+            const primB = adaptPrimaries(presetPrimNative[idB], dataB.nativeWP, selectedWP);
+
+            title.textContent = `Analysis — ${dataA.label} vs ${dataB.label}`;
+
+            // Area comparison — normalise both bars relative to the larger gamut
+            const areaA  = triangleArea(primA);
+            const areaB  = triangleArea(primB);
+            const larger = areaA >= areaB;
+            const pctA   = (areaA / Math.max(areaA, areaB) * 100).toFixed(1);
+            const pctB   = (areaB / Math.max(areaA, areaB) * 100).toFixed(1);
+            const relAB  = (areaA / areaB * 100).toFixed(1); // A as % of B
+
+            // Optional mapped areas vs target
+            let mappedRowsHTML = '';
+            if (targetSpace !== 'none' && REFERENCE_SPACES[targetSpace]) {
+                const ref        = REFERENCE_SPACES[targetSpace];
+                const targetPrim = adaptPrimaries(ref.prim, ref.nativeWP, selectedWP);
+                const targetArea = triangleArea(targetPrim);
+                const mappedA    = applyGamutMapping(primA, targetSpace, mappingStrategy, wp);
+                const mappedB    = applyGamutMapping(primB, targetSpace, mappingStrategy, wp);
+                const mapPctA    = (triangleArea(mappedA) / targetArea * 100).toFixed(1);
+                const mapPctB    = (triangleArea(mappedB) / targetArea * 100).toFixed(1);
+                const tBarW      = Math.min(100, triangleArea(targetPrim) / Math.max(areaA, areaB) * 100).toFixed(1);
+                mappedRowsHTML = `
+                <hr class="an-sep">
+                <div class="area-lbl" style="margin-bottom:4px">vs ${ref.name} (${mappingStrategy})</div>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:80px;color:${ref.color}">${ref.name}</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${tBarW}%;background:${ref.color}"></div></div>
+                    <span class="area-pct">—</span>
+                </div>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:80px;color:${dataA.color}">${dataA.label} mapped</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${Math.min(100,parseFloat(mapPctA))}%;background:${dataA.color};opacity:0.55"></div></div>
+                    <span class="area-pct">${mapPctA}%</span>
+                </div>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:80px;color:${dataB.color}">${dataB.label} mapped</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${Math.min(100,parseFloat(mapPctB))}%;background:${dataB.color};opacity:0.55"></div></div>
+                    <span class="area-pct">${mapPctB}%</span>
+                </div>`;
+            }
+
+            const areaBlock = `<div class="an-block">
+                <h3>Gamut Area Comparison</h3>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:80px;color:${dataA.color}">${dataA.label}</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${pctA}%;background:${dataA.color}"></div></div>
+                    <span class="area-pct">${pctA}%</span>
+                </div>
+                <div class="area-row">
+                    <span class="area-lbl" style="min-width:80px;color:${dataB.color}">${dataB.label}</span>
+                    <div class="area-bar-bg"><div class="area-bar-fg" style="width:${pctB}%;background:${dataB.color}"></div></div>
+                    <span class="area-pct">${pctB}%</span>
+                </div>
+                ${mappedRowsHTML}
+                <hr class="an-sep">
+                <div class="narrative">
+                    <strong>${dataA.label}</strong> covers <strong>${relAB}%</strong> of the gamut area of <strong>${dataB.label}</strong>
+                    (xy space, proportional to perceptual colour volume).
+                    ${larger
+                        ? `<strong>${dataA.label}</strong> is the larger gamut by <strong>${(parseFloat(relAB)-100).toFixed(1)}%</strong>.`
+                        : `<strong>${dataB.label}</strong> is the larger gamut by <strong>${(100-parseFloat(relAB)).toFixed(1)}%</strong>.`}
+                </div>
+            </div>`;
+
+            const shiftAB = primaryCompareHTML(primA, primB, dataA.label, dataB.label, wp, dataA.color);
+            const shiftBA = primaryCompareHTML(primB, primA, dataB.label, dataA.label, wp, dataB.color);
+
+            content.innerHTML = `
+                <div class="an-grid solo">${areaBlock}</div>
+                <div style="height:10px"></div>
+                <div class="an-grid">${shiftAB}${shiftBA}</div>`;
+        }
+    }
+
+    function buildLegend() {
+        const container = document.getElementById('legendContainer');
+        container.innerHTML = '';
+        const add = (color, label, dashed=false, italic=false) => {
+            const el = document.createElement('div');
+            el.className = 'legend-item';
+            const sw = document.createElement('div');
+            sw.className = 'legend-swatch' + (dashed ? ' dashed' : '');
+            sw.style.background = dashed ? 'transparent' : color;
+            if (dashed) sw.style.borderBottomColor = color;
+            el.appendChild(sw);
+            const span = document.createElement('span');
+            span.textContent = label;
+            if (italic) span.style.opacity = '0.7';
+            el.appendChild(span);
+            container.appendChild(el);
+        };
+
+        if (targetSpace !== 'none') {
+            add(REFERENCE_SPACES[targetSpace].color, `▶ Target: ${REFERENCE_SPACES[targetSpace].name}`);
+            add('#888', `  Dashed = mapped (${mappingStrategy})`, true);
+        }
+        
+
+        // reference spaces
+        for (const [key, ref] of Object.entries(REFERENCE_SPACES)) {
+            add(ref.color, `${ref.name} (ref)`, true, true);
+        }
+
+        // cameras
+        for (const id of getCamerasInFamily()) {
+            add(presetMatrices[id].color, presetMatrices[id].label);
+        }
+        add('#facc15', `WP: ${WHITE_POINTS[selectedWP].name}`);
+    }
+
+    // ── Controls ──────────────────────────────────────────────────
+    function updateTitle() {
+        const target = targetSpace==='none' ? 'None' : REFERENCE_SPACES[targetSpace]?.name;
+        const native = showNative ? ' + Native' : '';
+        const t = `WP: ${WHITE_POINTS[selectedWP].name} · Target: ${target}${native} · ${mappingStrategy}`;
+        document.getElementById('plotTitle').textContent    = `xy Chromaticity · ${t}`;
+        document.getElementById('ciePlotTitle').textContent = `CIE 1931 xy · ${t}`;
+    }
+
+    function toggleCamera(preset) {
+        if (preset === 'all') {
+            selectedCameras = new Set(ALL_FAMILIES);
+        } else if (preset === 'none') {
+            selectedCameras = new Set();
+        } else {
+            // Toggle this family. If currently all-on, first switch to only this one.
+            const allOn = ALL_FAMILIES.every(f => selectedCameras.has(f));
+            if (allOn) {
+                selectedCameras = new Set([preset]);
+            } else if (selectedCameras.has(preset)) {
+                selectedCameras.delete(preset);
+            } else {
+                selectedCameras.add(preset);
+            }
+        }
+        syncCameraButtons();
+        drawAll(); buildLegend(); buildAnalysis();
+    }
+    function setWP(wp) {
+        selectedWP = wp;
+        currentWP  = WHITE_POINTS[wp];
+        rebuildRefPrimaries();
+        document.querySelectorAll('.wp-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.wp===wp));
+        updateTitle(); drawAll(); buildLegend(); buildAnalysis();
+    }
+    function setTarget(t) {
+        targetSpace = t;
+        document.querySelectorAll('[data-target]').forEach(b =>
+            b.classList.toggle('active', b.dataset.target===t));
+        updateTitle(); drawAll(); buildLegend(); buildAnalysis();
+    }
+    function toggleNative() {
+        showNative = !showNative;
+        document.getElementById('nativeToggle').classList.toggle('active', showNative);
+        updateTitle(); drawAll(); buildLegend(); buildAnalysis();
+    }
+    function setStrategy(s) {
+        mappingStrategy = s;
+        document.querySelectorAll('.strat-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.strategy===s));
+        updateTitle(); drawAll(); buildLegend(); buildAnalysis();
+    }
+
+    document.querySelectorAll('[data-preset]').forEach(b =>
+        b.addEventListener('click', () => toggleCamera(b.dataset.preset)));
+    document.querySelectorAll('.wp-btn').forEach(b =>
+        b.addEventListener('click', () => setWP(b.dataset.wp)));
+    document.querySelectorAll('[data-target]').forEach(b =>
+        b.addEventListener('click', () => setTarget(b.dataset.target)));
+    document.querySelectorAll('.strat-btn').forEach(b =>
+        b.addEventListener('click', () => setStrategy(b.dataset.strategy)));
+    document.getElementById('nativeToggle').addEventListener('click', toggleNative);
+
+    // ── Resize (polar) ────────────────────────────────────────────
+    function handleResize() {
+        const rect = document.querySelector('#polarCard .canvas-wrapper').getBoundingClientRect();
+        polarCanvas.width  = Math.round(rect.width);
+        polarCanvas.height = Math.round(rect.height);
+        updateDimensions();
+        draw();
+    }
+    new ResizeObserver(handleResize).observe(document.querySelector('#polarCard .canvas-wrapper'));
+
+    // ── Cursor (polar) ────────────────────────────────────────────
+    polarCanvas.addEventListener('mousemove', e => {
+        const rect  = polarCanvas.getBoundingClientRect();
+        const scale = polarCanvas.width / rect.width;
+        const mx = (e.clientX - rect.left) * scale;
+        const my = (e.clientY - rect.top)  * scale;
+        const dx = mx-center, dy = center-my;
+        const rPx = Math.sqrt(dx*dx+dy*dy);
+        const rNorm = rPx / maxRadius;
+        const xyR = (rNorm / 1) * PLOT_RADIUS_NORM;
+        const ang = Math.atan2(dy, dx);
+        const xC = currentWP.x + xyR*Math.cos(ang);
+        const yC = currentWP.y + xyR*Math.sin(ang);
+        const hue = ((ang*180/Math.PI)+360)%360;
+        const txt = rNorm <= 1.0
+            ? `xy (${xC.toFixed(4)}, ${yC.toFixed(4)})  r=${(xyR).toFixed(4)}  θ=${Math.round(hue)}°`
+            : `outside plot  xy≈(${xC.toFixed(3)}, ${yC.toFixed(3)})`;
+        document.getElementById('cursorCoord').textContent = txt;
+    });
+
+    // ── drawAll dispatcher ────────────────────────────────────────
+    function drawAll() {
+        if (currentView === 'polar') draw();
+        else drawCie();
+    }
+
+    // ── Init ──────────────────────────────────────────────────────
+    rebuildRefPrimaries();
+    syncCameraButtons();
+    updateTitle();
+    buildLegend();
+    buildAnalysis();
+    setTimeout(handleCieResize, 80);
+})();
+</script>
+</body>
+</html>
