@@ -13,5 +13,6 @@ Quantitative analysis: gamut area %, per-primary hue and chroma deltas
 Natural-language comparative narrative for primary hue shift direction and magnitude
 
 Technical Basis
+
 Camera gamuts are defined by DNG ForwardMatrix 2 (FM2), which encodes the linear transform from balanced camera raw RGB to CIE XYZ under D65. Extracting the matrix columns yields the chromaticity coordinates of each primary. Chromatic adaptation uses the Bradford transform with ICC-standard matrix values, consistent with professional ICC colour management workflows.
 A note on sub-locus primaries: modern camera sensors can produce primary chromaticities mathematically outside the spectral locus. These are valid virtual primaries — a property of sensor physics, not a data error.
