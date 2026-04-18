@@ -6,10 +6,15 @@ The tool is built on the CIE 1931 xy chromaticity diagram and presents two compl
 Key Capabilities
 
 Plot native sensor gamuts as triangles on the CIE 1931 xy diagram and polar plot
+
 Compare up to ten cameras simultaneously; multi-select up to two for detailed analysis
+
 Visualise gamut mapping to six target colour spaces using four distinct strategies
+
 Bradford chromatic adaptation between D50 and D65 working white points
+
 Quantitative analysis: gamut area %, per-primary hue and chroma deltas
+
 Natural-language comparative narrative for primary hue shift direction and magnitude
 
 Technical Basis
