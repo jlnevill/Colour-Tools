@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Colour Space Gamut Mapping</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+*{box-sizing:border-box;}
+:root{
+    --bg0:#070b12;--bg1:#0d1420;--bg2:#131d2e;--bg3:#1a2740;
+    --border:rgba(100,140,200,0.15);--text:#c8d8f0;--muted:#5a7090;
+    --accent:#4a9eff;--accent2:#e8b84a;
+    --mono:'JetBrains Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+body{background:var(--bg0);font-family:var(--sans);margin:0;padding:16px;min-height:100vh;color:var(--text);}
+.app-container{max-width:1080px;margin:0 auto;}
+.header{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;}
+h1{color:white;font-size:1.1rem;font-weight:600;margin:0;letter-spacing:-0.01em;}
+.version-badge{background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:0.6rem;padding:2px 8px;border-radius:20px;}
+.sub{color:var(--muted);margin-bottom:12px;font-size:0.72rem;font-family:var(--mono);}
+.controls-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center;}
+.ctrl-group{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:6px 10px;background:var(--bg1);border:1px solid var(--border);border-radius:8px;}
+.ctrl-label{font-family:var(--mono);font-size:0.6rem;color:var(--muted);margin-right:2px;white-space:nowrap;}
+.btn{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:4px 12px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:0.68rem;transition:all 0.15s;}
+.btn:hover{background:var(--bg3);border-color:var(--accent);}
+.btn.active{background:#1a3050;border-color:var(--accent);color:#90c8ff;}
+.space-btn.active{border-width:2px;}
+
+/* Source/Target dropdowns */
+.selector-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:stretch;}
+.selector-box{background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:10px 14px;flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px;}
+.selector-box h3{margin:0;font-size:0.65rem;font-weight:700;font-family:var(--mono);letter-spacing:0.04em;text-transform:uppercase;}
+.selector-box h3.src-hdr{color:#4a9eff;}
+.selector-box h3.tgt-hdr{color:#e8b84a;}
+.space-select{
+    appearance:none;-webkit-appearance:none;
+    background:var(--bg2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a7090' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+    border:1px solid var(--border);color:var(--text);
+    padding:7px 30px 7px 10px;border-radius:6px;cursor:pointer;
+    font-family:var(--mono);font-size:0.68rem;width:100%;
+    transition:border-color 0.15s;
+}
+.space-select:hover,.space-select:focus{border-color:var(--accent);outline:none;}
+.space-select.src-sel{border-left:3px solid #4a9eff;}
+.space-select.tgt-sel{border-left:3px solid #e8b84a;}
+.space-select option{background:#0d1420;color:var(--text);}
+.space-select optgroup{background:#0a1018;color:var(--muted);font-style:normal;font-size:0.62rem;}
+
+/* Plots */
+.plots-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;}
+.plot-wrap{background:var(--bg1);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.plot-title{font-family:var(--mono);font-size:0.6rem;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border);}
+canvas{display:block;width:100%;height:auto;}
+.coord-bar{font-family:var(--mono);font-size:0.6rem;color:var(--muted);padding:4px 10px;border-top:1px solid var(--border);min-height:22px;}
+.legend-grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
+.legend-item{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:0.62rem;color:var(--text);}
+.legend-swatch{width:20px;height:3px;border-radius:2px;flex-shrink:0;}
+.legend-swatch.dashed{background:transparent;border-bottom:2px dashed;}
+
+/* Analysis */
+#analysisPanel{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+#analysisPanel h2{color:#90c8ff;font-size:0.72rem;font-weight:600;margin:0;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.05em;}
+.an-block{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;}
+.an-block h3{margin:0 0 7px 0;font-size:0.65rem;font-weight:700;font-family:var(--mono);color:#7ab8e8;letter-spacing:0.03em;text-transform:uppercase;}
+.area-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.area-bar-bg{flex:1;background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;}
+.area-bar-fg{height:100%;border-radius:4px;}
+.area-pct{font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--accent2);min-width:40px;text-align:right;}
+.area-lbl{font-size:0.61rem;color:var(--muted);}
+hr.an-sep{border:none;border-top:1px solid var(--border);margin:8px 0;}
+.narrative{font-size:0.66rem;color:var(--text);line-height:1.65;}
+.narrative strong{color:#c8e0ff;}
+.dtag{display:inline-block;font-family:var(--mono);font-size:0.57rem;padding:1px 5px;border-radius:10px;margin-left:3px;}
+.dtag.warm{background:#2a1400;color:#ffaa44;}
+.dtag.cool{background:#001828;color:#44aaff;}
+.dtag.green{background:#001a08;color:#44ff99;}
+.dtag.neut{background:var(--bg3);color:var(--muted);}
+
+/* Primary table */
+.mc-table-wrap{overflow-x:auto;margin-bottom:10px;}
+.mc-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:0.6rem;}
+.mc-table th{background:#1a2740;color:#90c8ff;font-weight:700;padding:6px 8px;text-align:left;border:1px solid var(--border);white-space:nowrap;letter-spacing:0.03em;}
+.mc-table th.primary-r{color:#ff7070;}
+.mc-table th.primary-g{color:#66ee99;}
+.mc-table th.primary-b{color:#66aaff;}
+.mc-table td{padding:5px 8px;border:1px solid var(--border);vertical-align:middle;line-height:1.45;}
+.mc-table tr:nth-child(even) td{background:var(--bg2);}
+.mc-table tr:nth-child(odd) td{background:var(--bg1);}
+.mc-table tr:hover td{background:var(--bg3);}
+.mc-table .cam-name{font-weight:700;white-space:nowrap;}
+.mc-table .xy-coord{color:var(--muted);font-size:0.55rem;display:block;}
+.mc-table .delta-val{font-weight:700;}
+.mc-table .delta-pos{color:#ffaa44;}
+.mc-table .delta-neg{color:#44aaff;}
+.mc-table .delta-neu{color:var(--muted);}
+.mc-table .ref-row td{background:#0d2040!important;border-color:rgba(74,158,255,0.25);}
+
+/* Note */
+.note{font-size:0.62rem;color:#c8a040;margin-top:6px;text-align:left;font-family:var(--mono);line-height:1.7;padding:10px 14px;background:var(--bg1);border:1px solid var(--border);border-radius:8px;}
+.export-btn{background:var(--bg3);border:1px solid var(--border);color:#90c8ff;font-family:var(--mono);font-size:0.6rem;padding:3px 10px;border-radius:5px;cursor:pointer;transition:all 0.15s;}
+.export-btn:hover{background:#1a3050;border-color:var(--accent);}
+
+/* Narrative section */
+.narr-section{margin-bottom:4px;}
+.narr-context{font-size:0.66rem;color:var(--text);line-height:1.7;}
+.narr-context strong{color:#c8e0ff;}
+.narr-summary{color:#b8d0e8;font-style:italic;}
+.narr-primary{display:flex;gap:10px;margin-bottom:8px;align-items:flex-start;}
+.narr-label{font-family:var(--mono);font-size:0.68rem;font-weight:800;min-width:44px;padding-top:1px;flex-shrink:0;}
+.narr-body{font-size:0.66rem;color:var(--text);line-height:1.7;}
+.narr-body strong{color:#c8e0ff;}
+
+@media(max-width:640px){.plots-row{grid-template-columns:1fr;}.selector-row{flex-direction:column;}}
+</style>
+</head>
+<body>
+<div class="app-container">
+<div class="header">
+    <h1>Colour Space Gamut Mapping</h1>
+    <span class="version-badge">v2</span>
+</div>
+<div class="sub" id="plotTitle">Source → Target · D50 · Compress</div>
+
+<div class="selector-row">
+    <div class="selector-box">
+        <h3 class="src-hdr">▶ Source Colour Space</h3>
+        <select class="space-select src-sel" id="sourceSelect"></select>
+    </div>
+    <div class="selector-box">
+        <h3 class="tgt-hdr">◀ Target Colour Space</h3>
+        <select class="space-select tgt-sel" id="targetSelect"></select>
+    </div>
+</div>
+
+<div class="controls-row">
+    <div class="ctrl-group">
+        <span class="ctrl-label">White Point:</span>
+        <button class="wp-btn btn active" data-wp="d50">D50</button>
+        <button class="wp-btn btn" data-wp="d65">D65</button>
+    </div>
+    <div class="ctrl-group">
+        <span class="ctrl-label">View:</span>
+        <button class="view-btn btn active" data-view="cie">CIE 1931</button>
+        <button class="view-btn btn" data-view="polar">Polar</button>
+    </div>
+    <div class="ctrl-group">
+        <span class="ctrl-label">Strategy:</span>
+        <button class="strat-btn btn" data-strategy="clip" title="Each primary clipped along WP ray to target boundary; in-gamut primaries untouched">Hard Clip</button>
+        <button class="strat-btn btn active" data-strategy="compress" title="Uniform scale of whole triangle to fit target; shape preserved">Compress</button>
+        <button class="strat-btn btn" data-strategy="preserve" title="Each primary moved to boundary at constant hue angle from WP">Hue-Preserve</button>
+        <button class="strat-btn btn" data-strategy="chroma" title="Proportional boundary-to-boundary remap: r_mapped = r_src × (r_tgt_bnd / r_src_bnd)">Chroma Map</button>
+        <button class="strat-btn btn" data-strategy="relcol" title="Relative Colorimetric: shift source WP to target WP, preserving all xy offsets from WP; clip residual out-of-gamut primaries to target boundary">Rel. Colorimetric</button>
+    </div>
+</div>
+
+<div class="plots-row">
+    <div class="plot-wrap" id="ciePlotWrap" style="display:block">
+        <div class="plot-title" id="ciePlotTitle">CIE 1931 xy</div>
+        <canvas id="cieCanvas" width="800" height="900"></canvas>
+        <div class="coord-bar" id="cursorCoord">&nbsp;</div>
+    </div>
+    <div class="plot-wrap" id="polarPlotWrap" style="display:none">
+        <div class="plot-title" id="polarTitle">Polar xy</div>
+        <canvas id="polarCanvas" width="750" height="750"></canvas>
+        <div class="coord-bar">&nbsp;</div>
+    </div>
+</div>
+
+<div class="legend-grid" id="legendContainer"></div>
+
+<div id="analysisPanel" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <h2 id="analysisPanelTitle" style="margin:0">Analysis</h2>
+        <button class="export-btn" id="exportBtn">⬇ Export Report</button>
+    </div>
+    <div id="analysisContent"></div>
+</div>
+
+<div class="note">
+    <strong style="color:#7ab8e8">Mapping strategies:</strong>
+    Hard Clip — each primary clipped independently to target boundary along WP ray ·
+    Compress — uniform scale of whole triangle to fit; shape preserved ·
+    Hue-Preserve — each primary moved to boundary at constant hue angle ·
+    Chroma Map — proportional boundary-to-boundary remap: r_mapped = r_src × (r_tgt_bnd / r_src_bnd); preserves relative chroma position (ICC perceptual analogue) ·
+    Rel. Colorimetric — shifts the source white point to the target white point (pure WP translation in xy), preserving all xy offsets from the WP exactly; any primaries still outside the target gamut after the shift are hard-clipped to the boundary. Models ICC relative colorimetric intent: colours that match under the source illuminant are reproduced to match under the target illuminant.
+    <br><br>
+    <span style="color:#7ab8e8;font-weight:600;">⚖ Source &gt; Target area means colour data loss at conversion.</span>
+    The area inside the solid source triangle but outside the dashed target triangle represents colours that must be mapped or clipped.
+    Hard Clip and Hue-Preserve leave in-gamut primaries untouched; Compress and Chroma Map rescale the entire triangle.
+    Compress preserves triangle shape; Chroma Map preserves relative chroma position within the gamut.
+</div>
+</div>
+
+<script>
+(function(){
+const PLOT_RADIUS_NORM = 0.32;
+const WHITE_POINTS = {
+    d50:{ x:0.34567, y:0.35850, name:"D50 (5003 K)" },
+    d65:{ x:0.31271, y:0.32902, name:"D65 (6504 K)" }
+};
+const M_D65_to_D50 = [[1.0478112,0.0228866,-0.0501270],[0.0295424,0.9904844,-0.0170491],[-0.0092345,0.0150436,0.7521316]];
+const M_D50_to_D65 = [[0.9555766,-0.0230393,0.0631636],[-0.0282897,1.0099416,0.0210077],[0.0122982,-0.0204830,1.3299098]];
+
+const SPACES = {
+    srgb:     { prim:{R:{x:0.6400,y:0.3300},G:{x:0.3000,y:0.6000},B:{x:0.1500,y:0.0600}}, nativeWP:'d65', name:'sRGB',              color:'#94a3b8' },
+    adobe:    { prim:{R:{x:0.6400,y:0.3300},G:{x:0.2100,y:0.7100},B:{x:0.1500,y:0.0600}}, nativeWP:'d65', name:'Adobe RGB',          color:'#facc15' },
+    p3:       { prim:{R:{x:0.6800,y:0.3200},G:{x:0.2650,y:0.6900},B:{x:0.1500,y:0.0600}}, nativeWP:'d65', name:'Display P3',         color:'#4ade80' },
+    rec2020:  { prim:{R:{x:0.7080,y:0.2920},G:{x:0.1700,y:0.7970},B:{x:0.1310,y:0.0460}}, nativeWP:'d65', name:'Rec.2020',           color:'#38bdf8' },
+    prophoto: { prim:{R:{x:0.7347,y:0.2653},G:{x:0.1596,y:0.8404},B:{x:0.0366,y:0.0001}}, nativeWP:'d50', name:'ProPhoto',           color:'#ec4899' },
+    hassrgb:  { prim:{R:{x:0.6810,y:0.3137},G:{x:0.2126,y:0.7390},B:{x:0.1331,y:0.0465}}, nativeWP:'d50', name:'Hasselblad RGB',     color:'#a78bfa' },
+    hasslstar:{ prim:{R:{x:0.7563,y:0.2437},G:{x:0.0979,y:0.9021},B:{x:0.0186,y:0.0221}}, nativeWP:'d50', name:'Hasselblad Lstar',   color:'#f97316' },
+    aces:     { prim:{R:{x:0.7347,y:0.2653},G:{x:0.0000,y:1.0000},B:{x:0.0001,y:-0.0770}},  nativeWP:'d60', name:'ACES AP0',           color:'#fb7185' },
+    acescg:   { prim:{R:{x:0.7130,y:0.2930},G:{x:0.1650,y:0.8300},B:{x:0.1280,y:0.0440}}, nativeWP:'d60', name:'ACEScg AP1',         color:'#c084fc' },
+    // ── Additional D50-native spaces (from ISO/ICC xyY primaries) ──
+    widegamut:{ prim:{R:{x:0.7350,y:0.2650},G:{x:0.1150,y:0.8260},B:{x:0.1570,y:0.0180}}, nativeWP:'d50', name:'Wide Gamut RGB',      color:'#f59e0b' },
+    bestrgb:  { prim:{R:{x:0.7347,y:0.2653},G:{x:0.2150,y:0.7750},B:{x:0.1300,y:0.0350}}, nativeWP:'d50', name:'Best RGB',            color:'#34d399' },
+    betargb:  { prim:{R:{x:0.6888,y:0.3112},G:{x:0.1986,y:0.7551},B:{x:0.1265,y:0.0352}}, nativeWP:'d50', name:'Beta RGB',            color:'#60a5fa' },
+    donrgb4:  { prim:{R:{x:0.6960,y:0.3000},G:{x:0.2150,y:0.7650},B:{x:0.1300,y:0.0350}}, nativeWP:'d50', name:'Don RGB 4',           color:'#a3e635' },
+    ecirgb:   { prim:{R:{x:0.6700,y:0.3300},G:{x:0.2100,y:0.7100},B:{x:0.1400,y:0.0800}}, nativeWP:'d50', name:'ECI RGB v2',          color:'#fb923c' },
+    ekta:     { prim:{R:{x:0.6950,y:0.3050},G:{x:0.2600,y:0.7000},B:{x:0.1100,y:0.0050}}, nativeWP:'d50', name:'Ekta Space PS5',      color:'#e879f9' },
+    colormatch:{ prim:{R:{x:0.6300,y:0.3400},G:{x:0.2950,y:0.6050},B:{x:0.1500,y:0.0750}},nativeWP:'d50', name:'ColorMatch RGB',      color:'#38bdf8' },
+};
+
+// Add D60 to WHITE_POINTS for ACES
+WHITE_POINTS.d60 = { x:0.32168, y:0.33767, name:"D60" };
+const M_D60_to_D50 = [[1.0130,0.0057,-0.0448],[0.0264,0.9941,-0.0147],[-0.0060,0.0101,0.7476]];
+const M_D50_to_D60 = [[0.9875,-0.0056,0.0592],[0.0280,1.0060,-0.0184],[0.0080,-0.0135,1.3389]];
+const M_D60_to_D65 = [[0.9871,-0.0061,0.0576],[0.0267,1.0012,0.0013],[-0.0012,0.0000,0.9991]];
+const M_D65_to_D60 = [[1.0130,0.0062,-0.0583],[-0.0270,0.9988,-0.0013],[0.0012,0.0000,1.0009]];
+
+// ── Math ──────────────────────────────────────────────────────────
+function xyToXYZ(x,y,Y=1){ const yc=Math.max(y,0.001); return {X:(x/yc)*Y,Y,Z:((1-x-yc)/yc)*Y}; }
+function XYZToxy({X,Y,Z}){ const s=X+Y+Z; return s===0?{x:0,y:0}:{x:X/s,y:Y/s}; }
+function applyMat3(M,v){ return {X:M[0][0]*v.X+M[0][1]*v.Y+M[0][2]*v.Z,Y:M[1][0]*v.X+M[1][1]*v.Y+M[1][2]*v.Z,Z:M[2][0]*v.X+M[2][1]*v.Y+M[2][2]*v.Z}; }
+
+function getAdaptMatrix(from, to) {
+    if (from===to) return null;
+    const key = from+'_'+to;
+    const maps = {
+        d65_d50:M_D65_to_D50, d50_d65:M_D50_to_D65,
+        d60_d50:M_D60_to_D50, d50_d60:M_D50_to_D60,
+        d60_d65:M_D60_to_D65, d65_d60:M_D65_to_D60,
+        // d60<->d50 via d65 for completeness
+    };
+    return maps[key] || null;
+}
+
+function adaptPrimaries(prim, fromWP, toWP) {
+    if (fromWP===toWP) return prim;
+    const M = getAdaptMatrix(fromWP, toWP);
+    if (!M) return prim;
+    const result={};
+    for (const c of ['R','G','B']) {
+        result[c] = XYZToxy(applyMat3(M, xyToXYZ(prim[c].x, prim[c].y)));
+    }
+    return result;
+}
+
+// ── Gamut mapping ─────────────────────────────────────────────────
+function scaleToGamutBoundary(pt, tri, wp) {
+    const edges=[[tri.R,tri.G],[tri.G,tri.B],[tri.B,tri.R]];
+    let best=null;
+    for (const [p1,p2] of edges) {
+        const dx=pt.x-wp.x,dy=pt.y-wp.y,ex=p2.x-p1.x,ey=p2.y-p1.y,denom=dx*ey-dy*ex;
+        if (Math.abs(denom)<1e-12) continue;
+        const fx=p1.x-wp.x,fy=p1.y-wp.y,t=(fx*ey-fy*ex)/denom,s=(fx*dy-fy*dx)/denom;
+        if (s>=0&&s<=1&&t>0&&(best===null||t<best)) best=t;
+    }
+    return best;
+}
+function clipToGamut(pt, tgt, wp) {
+    const t = scaleToGamutBoundary(pt, tgt, wp);
+    if (t===null||t>=1) return pt;
+    return {x:wp.x+(pt.x-wp.x)*t, y:wp.y+(pt.y-wp.y)*t};
+}
+function compressTriangle(src, tgt, wp) {
+    const factors = ['R','G','B'].map(c => {
+        const t = scaleToGamutBoundary(src[c], tgt, wp);
+        return t===null ? 1 : Math.min(1, t);
+    });
+    const scale = Math.min(...factors);
+    const mapped={};
+    for (const c of ['R','G','B']) mapped[c]={x:wp.x+(src[c].x-wp.x)*scale,y:wp.y+(src[c].y-wp.y)*scale};
+    return mapped;
+}
+function preserveHueMap(pt, tgt, wp) {
+    const ang=Math.atan2(pt.y-wp.y,pt.x-wp.x);
+    let lo=0,hi=2;
+    for (let i=0;i<40;i++) {
+        const mid=(lo+hi)/2;
+        const test={x:wp.x+Math.cos(ang)*mid,y:wp.y+Math.sin(ang)*mid};
+        const t=scaleToGamutBoundary(test,tgt,wp);
+        if (t!==null&&t<1) hi=mid; else lo=mid;
+    }
+    const r=(lo+hi)/2;
+    return {x:wp.x+Math.cos(ang)*r,y:wp.y+Math.sin(ang)*r};
+}
+function chromaBoundaryRadius(ang,tri,wp) {
+    const dx=Math.cos(ang),dy=Math.sin(ang);
+    const edges=[[tri.R,tri.G],[tri.G,tri.B],[tri.B,tri.R]];
+    let best=null;
+    for (const [p1,p2] of edges) {
+        const ex=p2.x-p1.x,ey=p2.y-p1.y,denom=dx*ey-dy*ex;
+        if (Math.abs(denom)<1e-12) continue;
+        const fx=p1.x-wp.x,fy=p1.y-wp.y,t=(fx*ey-fy*ex)/denom,s=(fx*dy-fy*dx)/denom;
+        if (t>0&&s>=0&&s<=1&&(best===null||t<best)) best=t;
+    }
+    return best;
+}
+function chromaMap(xy,srcPrim,tgtPrim,wp) {
+    const ang=Math.atan2(xy.y-wp.y,xy.x-wp.x);
+    const rSrc=Math.sqrt((xy.x-wp.x)**2+(xy.y-wp.y)**2);
+    if (rSrc<1e-8) return xy;
+    const rSrcB=chromaBoundaryRadius(ang,srcPrim,wp);
+    const rTgtB=chromaBoundaryRadius(ang,tgtPrim,wp);
+    if (!rSrcB||rSrcB<1e-8||!rTgtB) return xy;
+    const rMapped=rSrc*(rTgtB/rSrcB);
+    return {x:wp.x+Math.cos(ang)*rMapped,y:wp.y+Math.sin(ang)*rMapped};
+}
+// Relative Colorimetric: rescale source primaries so the source WP maps exactly to
+// the target WP, then hard-clip anything still outside the target gamut.
+// In xy space: find the source WP (centroid of the adapted source triangle — or
+// just use currentWP since both are already adapted to the same display WP), then
+// for each primary scale from the NATIVE source WP position toward/away from the
+// TARGET WP position using the WP-to-WP Bradford scale factor along each primary's ray.
+// Practically: translate each primary so that the distance relationship to the target
+// WP mirrors the source's distance to the source WP, then clip to target boundary.
+function relativeColorimetric(srcPrim, tgtPrim, srcWP, tgtWP, displayWP) {
+    // Adapt source WP and target WP to display WP space (already done via adaptedSpaces,
+    // but we need the WP chromaticities adapted to display WP for the scaling).
+    // In this tool all primaries are already adapted to currentWP (displayWP),
+    // so srcWP and tgtWP are also in display WP space.
+    const mapped = {};
+    for (const c of ['R','G','B']) {
+        const pt = srcPrim[c];
+        // Vector from source WP to primary
+        const dx = pt.x - srcWP.x;
+        const dy = pt.y - srcWP.y;
+        // Rescale: translate origin to target WP, preserve the xy offset direction
+        // but scale it by (chroma from targetWP / chroma from sourceWP) so that
+        // a primary at the source WP maps to the target WP.
+        // The scale factor is 1.0 (pure WP-origin shift) — relative colorimetric
+        // simply moves the origin from sourceWP to targetWP without rescaling chroma.
+        const remapped = {
+            x: tgtWP.x + dx,
+            y: tgtWP.y + dy
+        };
+        // Hard-clip to target gamut boundary (out-of-gamut after WP shift → clip)
+        mapped[c] = clipToGamut(remapped, tgtPrim, tgtWP);
+    }
+    return mapped;
+}
+
+function applyMapping(srcPrim, tgtPrim, strategy, wp) {
+    if (strategy==='compress') return compressTriangle(srcPrim, tgtPrim, wp);
+    if (strategy==='chroma') {
+        const m={};
+        for (const c of ['R','G','B']) m[c]=chromaMap(srcPrim[c],srcPrim,tgtPrim,wp);
+        return m;
+    }
+    if (strategy==='relcol') {
+        // Source and target WPs in display WP space
+        const srcSp  = SPACES[sourceKey];
+        const tgtSp  = SPACES[targetKey];
+        const srcWP  = adaptPrimaries({R:WHITE_POINTS[srcSp.nativeWP],G:WHITE_POINTS[srcSp.nativeWP],B:WHITE_POINTS[srcSp.nativeWP]}, srcSp.nativeWP, selectedWP).R;
+        const tgtWP  = adaptPrimaries({R:WHITE_POINTS[tgtSp.nativeWP],G:WHITE_POINTS[tgtSp.nativeWP],B:WHITE_POINTS[tgtSp.nativeWP]}, tgtSp.nativeWP, selectedWP).R;
+        return relativeColorimetric(srcPrim, tgtPrim, srcWP, tgtWP, wp);
+    }
+    const m={};
+    for (const c of ['R','G','B']) {
+        if (strategy==='clip') m[c]=clipToGamut(srcPrim[c],tgtPrim,wp);
+        else if (strategy==='preserve') m[c]=preserveHueMap(srcPrim[c],tgtPrim,wp);
+        else m[c]=srcPrim[c];
+    }
+    return m;
+}
+
+// ── Analysis helpers ──────────────────────────────────────────────
+function triangleArea(p){ return Math.abs((p.R.x*(p.G.y-p.B.y)+p.G.x*(p.B.y-p.R.y)+p.B.x*(p.R.y-p.G.y))/2); }
+function hueAngle(pt,wp){ return ((Math.atan2(pt.y-wp.y,pt.x-wp.x)*180/Math.PI)+360)%360; }
+function chromaDist(pt,wp){ return Math.sqrt((pt.x-wp.x)**2+(pt.y-wp.y)**2); }
+function angleDiff(a,b){ let d=a-b; if(d>180)d-=360; if(d<-180)d+=360; return d; }
+
+function describePrimaryShift(primary, camPt, refPt, wp) {
+    const camHue=hueAngle(camPt,wp), refHue=hueAngle(refPt,wp);
+    const camSat=chromaDist(camPt,wp), refSat=chromaDist(refPt,wp);
+    const dHue=angleDiff(camHue,refHue), dSat=camSat-refSat;
+    const dX=camPt.x-refPt.x, dY=camPt.y-refPt.y;
+    const hueInsig=Math.abs(dHue)<0.5, satInsig=Math.abs(dSat)<0.002;
+    let hueDesc='',satDesc='',tag='neut';
+    if (!hueInsig) {
+        if (primary==='R'){ hueDesc=dHue>0?'shifted orange/warmer':'shifted purple/cooler'; tag=dHue>0?'warm':'cool'; }
+        else if (primary==='G'){ hueDesc=dHue>0?'shifted yellow-green/warmer':'shifted cyan/cooler'; tag=dHue>0?'warm':'cool'; }
+        else { hueDesc=dHue>0?'shifted cyan/greener':'shifted violet/redder'; tag=dHue>0?'green':'cool'; }
+    }
+    if (!satInsig) satDesc=dSat>0?'more saturated':'less saturated';
+    const parts=[hueDesc,satDesc].filter(Boolean);
+    return {
+        desc:parts.length?parts.join(', '):'essentially identical', tag,
+        dHue:dHue.toFixed(1), dSat:(dSat*1000).toFixed(1),
+        dX:(dX*1000).toFixed(1), dY:(dY*1000).toFixed(1),
+        camXY:`(${camPt.x.toFixed(4)}, ${camPt.y.toFixed(4)})`
+    };
+}
+
+function primaryTableRow(camPrim, refPrim, label, color, wp, isRef) {
+    const pColors={R:'#ff5555',G:'#44dd88',B:'#4499ff'};
+    let row=`<tr class="${isRef?'ref-row':''}">`;
+    row+=`<td><span class="cam-name" style="color:${color}">${label}</span>${isRef?' <span class="delta-neu" style="font-size:0.55rem">[ref]</span>':''}</td>`;
+    for (const c of ['R','G','B']) {
+        const pt=camPrim[c];
+        const xy=`<span class="xy-coord">${pt.x.toFixed(4)}, ${pt.y.toFixed(4)}</span>`;
+        if (isRef||!refPrim) {
+            row+=`<td>${xy}<span class="delta-neu">—</span></td><td class="delta-neu">—</td><td class="delta-neu">—</td>`;
+        } else {
+            const info=describePrimaryShift(c,pt,refPrim[c],wp);
+            const dHcls=Math.abs(parseFloat(info.dHue))<0.5?'delta-neu':parseFloat(info.dHue)>0?'delta-pos':'delta-neg';
+            const dScls=Math.abs(parseFloat(info.dSat))<2?'delta-neu':parseFloat(info.dSat)>0?'delta-pos':'delta-neg';
+            row+=`<td>${xy}<span class="dtag ${info.tag}">${info.desc}</span></td>
+                  <td><span class="delta-val ${dHcls}">${parseFloat(info.dHue)>=0?'+':''}${info.dHue}°</span></td>
+                  <td><span class="delta-val ${dScls}">${parseFloat(info.dSat)>=0?'+':''}${info.dSat}‰</span>
+                      <span class="delta-neu" style="font-size:0.55rem"> Δx${parseFloat(info.dX)>=0?'+':''}${info.dX} Δy${parseFloat(info.dY)>=0?'+':''}${info.dY}</span></td>`;
+        }
+    }
+    row+=`</tr>`;
+    return row;
+}
+
+function primaryTable(rowsHTML) {
+    return `<div class="mc-table-wrap"><table class="mc-table">
+        <thead><tr>
+            <th rowspan="2">Colour Space</th>
+            <th colspan="3" class="primary-r">Red Primary</th>
+            <th colspan="3" class="primary-g">Green Primary</th>
+            <th colspan="3" class="primary-b">Blue Primary</th>
+        </tr><tr>
+            <th class="primary-r">xy · shift</th><th class="primary-r">Δhue°</th><th class="primary-r">Δchroma‰</th>
+            <th class="primary-g">xy · shift</th><th class="primary-g">Δhue°</th><th class="primary-g">Δchroma‰</th>
+            <th class="primary-b">xy · shift</th><th class="primary-b">Δhue°</th><th class="primary-b">Δchroma‰</th>
+        </tr></thead>
+        <tbody>${rowsHTML}</tbody>
+    </table></div>`;
+}
+
+// ── State ─────────────────────────────────────────────────────────
+let sourceKey    = 'prophoto';
+let targetKey    = 'srgb';
+let selectedWP   = 'd50';
+let currentWP    = WHITE_POINTS.d50;
+let strategy     = 'compress';
+let currentView  = 'cie';
+let adaptedSpaces = {};
+
+function rebuildAdapted() {
+    for (const [k,sp] of Object.entries(SPACES)) {
+        adaptedSpaces[k] = adaptPrimaries(sp.prim, sp.nativeWP, selectedWP);
+    }
+}
+
+function getSourcePrim() { return adaptedSpaces[sourceKey]; }
+function getTargetPrim() { return adaptedSpaces[targetKey]; }
+
+// ── CIE canvas ────────────────────────────────────────────────────
+const cieCanvas = document.getElementById('cieCanvas');
+const cieCtx = cieCanvas.getContext('2d');
+let cieW=800, cieH=900;
+const CIE_X0=0,CIE_X1=0.80,CIE_Y0=0,CIE_Y1=0.90;
+let ciePad={l:52,r:16,t:16,b:44};
+
+const LOCUS=[
+    [380,0.1741,0.0050],[390,0.1738,0.0049],[400,0.1733,0.0048],[410,0.1726,0.0048],
+    [420,0.1714,0.0051],[430,0.1689,0.0069],[440,0.1644,0.0109],[450,0.1566,0.0177],
+    [460,0.1440,0.0297],[470,0.1241,0.0578],[480,0.0913,0.1327],[490,0.0454,0.2950],
+    [500,0.0082,0.5384],[510,0.0139,0.7502],[520,0.0743,0.8338],[530,0.1547,0.8059],
+    [540,0.2296,0.7543],[550,0.3016,0.6923],[560,0.3731,0.6245],[570,0.4441,0.5547],
+    [580,0.5125,0.4866],[590,0.5752,0.4242],[600,0.6270,0.3725],[610,0.6658,0.3340],
+    [620,0.6915,0.3083],[630,0.7079,0.2920],[640,0.7190,0.2809],[650,0.7260,0.2740],
+    [660,0.7283,0.2717],[670,0.7300,0.2700],[700,0.7347,0.2653],[780,0.7347,0.2653]
+];
+
+function cieToPixel(x,y){ const pw=cieW-ciePad.l-ciePad.r,ph=cieH-ciePad.t-ciePad.b; return {x:ciePad.l+(x-CIE_X0)/(CIE_X1-CIE_X0)*pw,y:ciePad.t+(1-(y-CIE_Y0)/(CIE_Y1-CIE_Y0))*ph}; }
+function pixelToCie(px,py){ const pw=cieW-ciePad.l-ciePad.r,ph=cieH-ciePad.t-ciePad.b; return {x:CIE_X0+(px-ciePad.l)/pw*(CIE_X1-CIE_X0),y:CIE_Y0+(1-(py-ciePad.t)/ph)*(CIE_Y1-CIE_Y0)}; }
+
+function hsvToRgb(h,s,v){ const i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);let r,g,b;switch(i%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;case 2:r=p;g=v;b=t;break;case 3:r=p;g=q;b=v;break;case 4:r=t;g=p;b=v;break;default:r=v;g=p;b=q;}return{r:r*255|0,g:g*255|0,b:b*255|0}; }
+
+function drawCieBackground() {
+    cieCtx.fillStyle='#04070e'; cieCtx.fillRect(0,0,cieW,cieH);
+    cieCtx.save();
+    cieCtx.beginPath();
+    const first=cieToPixel(LOCUS[0][1],LOCUS[0][2]); cieCtx.moveTo(first.x,first.y);
+    for (let i=1;i<LOCUS.length;i++){ const p=cieToPixel(LOCUS[i][1],LOCUS[i][2]); cieCtx.lineTo(p.x,p.y); }
+    cieCtx.closePath(); cieCtx.clip();
+    const img=cieCtx.getImageData(0,0,cieW,cieH); const d=img.data;
+    for (let py=0;py<cieH;py++) for (let px=0;px<cieW;px++) {
+        const xy=pixelToCie(px+0.5,py+0.5);
+        const ang=Math.atan2(xy.y-0.3290,xy.x-0.3127);
+        const hue=((ang+Math.PI)/(2*Math.PI)+0.5)%1.0;
+        const dist=Math.sqrt((xy.x-0.3127)**2+(xy.y-0.3290)**2);
+        const sat=Math.min(1.0,dist/0.35);
+        const val=0.55+sat*0.3;
+        const {r,g,b}=hsvToRgb(hue,sat*0.9,val);
+        const i2=(py*cieW+px)*4; d[i2]=r;d[i2+1]=g;d[i2+2]=b;d[i2+3]=255;
+    }
+    cieCtx.putImageData(img,0,0); cieCtx.restore();
+}
+
+function drawCieLocus() {
+    cieCtx.beginPath();
+    const first=cieToPixel(LOCUS[0][1],LOCUS[0][2]); cieCtx.moveTo(first.x,first.y);
+    for (let i=1;i<LOCUS.length;i++){ const p=cieToPixel(LOCUS[i][1],LOCUS[i][2]); cieCtx.lineTo(p.x,p.y); }
+    cieCtx.closePath(); cieCtx.strokeStyle='rgba(255,255,255,0.6)'; cieCtx.lineWidth=1.2; cieCtx.stroke();
+    cieCtx.font="8px 'JetBrains Mono',monospace"; cieCtx.fillStyle='rgba(255,255,255,0.7)';
+    const lbls=[460,470,480,490,500,510,520,540,560,580,600,620,660,700];
+    for (const [nm,x,y] of LOCUS) {
+        if (!lbls.includes(nm)) continue;
+        const p=cieToPixel(x,y); cieCtx.beginPath(); cieCtx.arc(p.x,p.y,2,0,2*Math.PI); cieCtx.fill();
+        const cx=0.33,cy=0.35,sc=12; const ox=(x-cx)/Math.sqrt((x-cx)**2+(y-cy)**2)*sc,oy=(y-cy)/Math.sqrt((x-cx)**2+(y-cy)**2)*sc;
+        cieCtx.fillText(nm,p.x+ox-8,p.y-oy+3);
+    }
+}
+
+function drawCieGrid() {
+    cieCtx.font="9px 'JetBrains Mono',monospace";
+    for (let xi=0;xi<=8;xi++) {
+        const x=xi*0.1,px=cieToPixel(x,0).x;
+        cieCtx.strokeStyle=xi===0?'rgba(255,255,255,0.28)':'rgba(255,255,255,0.10)'; cieCtx.lineWidth=xi===0?0.8:0.5;
+        cieCtx.beginPath(); cieCtx.moveTo(px,ciePad.t); cieCtx.lineTo(px,cieH-ciePad.b); cieCtx.stroke();
+        cieCtx.fillStyle='rgba(255,255,255,0.6)'; cieCtx.fillText(x.toFixed(1),px-8,cieH-ciePad.b+13);
+    }
+    for (let yi=0;yi<=9;yi++) {
+        const y=yi*0.1,py=cieToPixel(0,y).y;
+        cieCtx.strokeStyle=yi===0?'rgba(255,255,255,0.28)':'rgba(255,255,255,0.10)'; cieCtx.lineWidth=yi===0?0.8:0.5;
+        cieCtx.beginPath(); cieCtx.moveTo(ciePad.l,py); cieCtx.lineTo(cieW-ciePad.r,py); cieCtx.stroke();
+        cieCtx.fillStyle='rgba(255,255,255,0.6)'; cieCtx.fillText(y.toFixed(1),2,py+3);
+    }
+    cieCtx.fillStyle='rgba(255,255,255,0.75)'; cieCtx.font="10px 'JetBrains Mono',monospace";
+    cieCtx.fillText('x',cieW-ciePad.r-6,cieH-ciePad.b+13); cieCtx.fillText('y',ciePad.l-14,ciePad.t+8);
+}
+
+function ciePrimToPixels(prim){ return ['R','G','B'].map(c=>cieToPixel(prim[c].x,prim[c].y)); }
+
+function drawCieTriangle(pts,color,lw,dashed,fillAlpha=0) {
+    cieCtx.beginPath(); cieCtx.moveTo(pts[0].x,pts[0].y); cieCtx.lineTo(pts[1].x,pts[1].y); cieCtx.lineTo(pts[2].x,pts[2].y); cieCtx.closePath();
+    if (fillAlpha>0){ cieCtx.fillStyle=color; cieCtx.globalAlpha=fillAlpha; cieCtx.fill(); cieCtx.globalAlpha=1; }
+    cieCtx.strokeStyle=color; cieCtx.lineWidth=lw; cieCtx.setLineDash(dashed?[7,5]:[]); cieCtx.stroke(); cieCtx.setLineDash([]);
+}
+
+function drawCieDots(prim,color,labels=['R','G','B']) {
+    for (let i=0;i<labels.length;i++) {
+        const c=labels[i],p=cieToPixel(prim[c].x,prim[c].y);
+        cieCtx.beginPath(); cieCtx.arc(p.x,p.y,4,0,2*Math.PI); cieCtx.fillStyle=color; cieCtx.fill();
+        cieCtx.fillStyle='white'; cieCtx.font="bold 9px 'JetBrains Mono',monospace";
+        cieCtx.shadowBlur=3; cieCtx.shadowColor='black'; cieCtx.fillText(c,p.x+5,p.y-2); cieCtx.shadowBlur=0;
+    }
+}
+
+function drawCieWP() {
+    const wp=currentWP, p=cieToPixel(wp.x,wp.y);
+    cieCtx.beginPath(); cieCtx.arc(p.x,p.y,7,0,2*Math.PI); cieCtx.fillStyle='#ffffff'; cieCtx.fill();
+    cieCtx.beginPath(); cieCtx.arc(p.x,p.y,4,0,2*Math.PI); cieCtx.fillStyle='#facc15'; cieCtx.fill();
+    cieCtx.fillStyle='rgba(255,255,255,0.8)'; cieCtx.font="bold 9px 'JetBrains Mono',monospace";
+    cieCtx.shadowBlur=2; cieCtx.shadowColor='black'; cieCtx.fillText(selectedWP.toUpperCase(),p.x+9,p.y-5); cieCtx.shadowBlur=0;
+}
+
+function drawCie() {
+    drawCieBackground();
+    drawCieLocus();
+    drawCieGrid();
+
+    // Draw all spaces as faint reference outlines
+    for (const [k,sp] of Object.entries(SPACES)) {
+        if (k===sourceKey||k===targetKey) continue;
+        drawCieTriangle(ciePrimToPixels(adaptedSpaces[k]), sp.color+'55', 0.8, true);
+    }
+
+    // Target — dashed highlight + lighter fill
+    const tgtPrim = getTargetPrim();
+    const tgtSp   = SPACES[targetKey];
+    drawCieTriangle(ciePrimToPixels(tgtPrim), tgtSp.color, 1.8, true, 0.08);
+
+    // Source — solid fill
+    const srcPrim = getSourcePrim();
+    const srcSp   = SPACES[sourceKey];
+    drawCieTriangle(ciePrimToPixels(srcPrim), srcSp.color, 2.0, false, 0.15);
+    drawCieDots(srcPrim, srcSp.color);
+
+    // Mapped — dashed, same source colour, lighter
+    const mappedPrim = applyMapping(srcPrim, tgtPrim, strategy, currentWP);
+    drawCieTriangle(ciePrimToPixels(mappedPrim), srcSp.color, 1.6, true, 0);
+
+    drawCieWP();
+
+    // Title
+    cieCtx.fillStyle='rgba(255,255,255,0.55)'; cieCtx.font="9px 'JetBrains Mono',monospace";
+    cieCtx.fillText(`${srcSp.name} → ${tgtSp.name} · ${strategy} · ${WHITE_POINTS[selectedWP].name}`, ciePad.l, cieH-ciePad.b+30);
+}
+
+// ── Polar canvas ──────────────────────────────────────────────────
+const polarCanvas = document.getElementById('polarCanvas');
+const polCtx = polarCanvas.getContext('2d');
+let polSize=750, polCenter=375, polMaxR=315;
+
+function updatePolDims(){ polSize=polarCanvas.width; polCenter=polSize/2; polMaxR=polSize*0.42; }
+function xyToPol(x,y){ const dx=x-currentWP.x,dy=y-currentWP.y; return {radius:Math.sqrt(dx*dx+dy*dy),angle:Math.atan2(dy,dx)}; }
+function polToPixel(radius,angle){ const rN=Math.min(1,radius/PLOT_RADIUS_NORM)*polMaxR; return {x:polCenter+rN*Math.cos(angle),y:polCenter-rN*Math.sin(angle)}; }
+
+function drawPolBg() {
+    const img=polCtx.getImageData(0,0,polSize,polSize); const d=img.data;
+    for (let py=0;py<polSize;py++) for (let px=0;px<polSize;px++) {
+        const dx=px-polCenter,dy=polCenter-py,rN=Math.sqrt(dx*dx+dy*dy)/polMaxR;
+        const i=(py*polSize+px)*4;
+        if (rN<=1){ const ang=Math.atan2(dy,dx),hue=((ang+Math.PI)/(2*Math.PI)+0.5)%1.0;
+            const sat=Math.min(0.88,rN*1.1),val=0.50+rN*0.35;
+            const {r,g,b}=hsvToRgb(hue,sat,val); d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=255;
+        } else { d[i]=7;d[i+1]=11;d[i+2]=18;d[i+3]=255; }
+    }
+    polCtx.putImageData(img,0,0);
+}
+
+function drawPolGrid() {
+    polCtx.strokeStyle='rgba(255,255,255,0.3)'; polCtx.lineWidth=0.8; polCtx.font="8px 'JetBrains Mono',monospace";
+    for (let r=0.05;r<=PLOT_RADIUS_NORM;r+=0.05) {
+        const px=(r/PLOT_RADIUS_NORM)*polMaxR; polCtx.beginPath(); polCtx.arc(polCenter,polCenter,px,0,2*Math.PI); polCtx.stroke();
+        polCtx.fillStyle='rgba(255,255,255,0.7)'; polCtx.fillText(`${Math.round(r*1000)/10}`,polCenter+px-18,polCenter-3);
+    }
+    polCtx.strokeStyle='rgba(255,255,255,0.18)'; polCtx.lineWidth=0.6;
+    const hueLabels={0:'Red',60:'Yellow',120:'Green',180:'Cyan',240:'Blue',300:'Magenta'};
+    for (let ang=0;ang<360;ang+=30) {
+        const rad=ang*Math.PI/180; polCtx.beginPath(); polCtx.moveTo(polCenter,polCenter);
+        polCtx.lineTo(polCenter+polMaxR*Math.cos(rad),polCenter-polMaxR*Math.sin(rad)); polCtx.stroke();
+        if (ang%60===0&&hueLabels[ang]) {
+            const lx=polCenter+(polMaxR+16)*Math.cos(rad),ly=polCenter-(polMaxR+16)*Math.sin(rad);
+            polCtx.fillStyle='rgba(255,255,255,0.7)'; polCtx.font="8px 'JetBrains Mono',monospace";
+            const lbl=hueLabels[ang]; polCtx.fillText(lbl,lx-lbl.length*2.5,ly+3);
+        }
+    }
+}
+
+function polPrimToPixels(prim){ return ['R','G','B'].map(c=>{ const p=xyToPol(prim[c].x,prim[c].y); return polToPixel(p.radius,p.angle); }); }
+
+function drawPolTriangle(pts,color,lw,dashed,fillAlpha=0) {
+    polCtx.save(); polCtx.beginPath(); polCtx.arc(polCenter,polCenter,polMaxR,0,2*Math.PI); polCtx.clip();
+    polCtx.beginPath(); polCtx.moveTo(pts[0].x,pts[0].y); polCtx.lineTo(pts[1].x,pts[1].y); polCtx.lineTo(pts[2].x,pts[2].y); polCtx.closePath();
+    if (fillAlpha>0){ polCtx.fillStyle=color; polCtx.globalAlpha=fillAlpha; polCtx.fill(); polCtx.globalAlpha=1; }
+    polCtx.strokeStyle=color; polCtx.lineWidth=lw; polCtx.setLineDash(dashed?[7,5]:[]); polCtx.stroke(); polCtx.setLineDash([]);
+    polCtx.restore();
+}
+
+function drawPolar() {
+    updatePolDims(); drawPolBg(); drawPolGrid();
+
+    // Reference outlines
+    for (const [k,sp] of Object.entries(SPACES)) {
+        if (k===sourceKey||k===targetKey) continue;
+        drawPolTriangle(polPrimToPixels(adaptedSpaces[k]),sp.color+'55',0.8,true);
+    }
+
+    const srcPrim=getSourcePrim(), tgtPrim=getTargetPrim();
+    const srcSp=SPACES[sourceKey], tgtSp=SPACES[targetKey];
+    drawPolTriangle(polPrimToPixels(tgtPrim),tgtSp.color,1.8,true,0.08);
+    drawPolTriangle(polPrimToPixels(srcPrim),srcSp.color,2.0,false,0.15);
+    const mappedPrim=applyMapping(srcPrim,tgtPrim,strategy,currentWP);
+    drawPolTriangle(polPrimToPixels(mappedPrim),srcSp.color,1.6,true,0);
+
+    // WP dot
+    polCtx.beginPath(); polCtx.arc(polCenter,polCenter,9,0,2*Math.PI); polCtx.fillStyle='#ffffff'; polCtx.fill();
+    polCtx.beginPath(); polCtx.arc(polCenter,polCenter,6,0,2*Math.PI); polCtx.fillStyle='#facc15'; polCtx.fill();
+    polCtx.strokeStyle='white'; polCtx.lineWidth=1.5; polCtx.stroke();
+    polCtx.fillStyle='white'; polCtx.font="bold 10px 'JetBrains Mono',monospace";
+    polCtx.shadowBlur=2; polCtx.shadowColor='black'; polCtx.fillText(selectedWP.toUpperCase(),polCenter+12,polCenter-8); polCtx.shadowBlur=0;
+}
+
+function drawAll(){ if(currentView==='cie') drawCie(); else drawPolar(); }
+
+// ── Analysis ──────────────────────────────────────────────────────
+function buildAnalysis() {
+    const panel=document.getElementById('analysisPanel');
+    const content=document.getElementById('analysisContent');
+    const title=document.getElementById('analysisPanelTitle');
+    if (sourceKey===targetKey){ panel.style.display='none'; return; }
+
+    const srcSp=SPACES[sourceKey], tgtSp=SPACES[targetKey], wp=currentWP;
+    const srcPrim=getSourcePrim(), tgtPrim=getTargetPrim();
+    const mappedPrim=applyMapping(srcPrim,tgtPrim,strategy,wp);
+
+    panel.style.display='';
+    title.textContent=`Analysis — ${srcSp.name} → ${tgtSp.name}`;
+
+    // Area block
+    const srcArea=triangleArea(srcPrim), tgtArea=triangleArea(tgtPrim), mapArea=triangleArea(mappedPrim);
+    const ratio=(srcArea/tgtArea*100).toFixed(1);
+    const mapRatio=(mapArea/tgtArea*100).toFixed(1);
+    const barSrc=Math.min(100,parseFloat(ratio));
+    const larger=srcArea>=tgtArea;
+
+    const areaHTML=`<div class="an-block">
+        <h3>Gamut Area</h3>
+        <div class="area-row">
+            <span class="area-lbl" style="min-width:120px;color:${srcSp.color}">${srcSp.name} (source)</span>
+            <div class="area-bar-bg"><div class="area-bar-fg" style="width:${barSrc}%;background:${srcSp.color}"></div></div>
+            <span class="area-pct">${ratio}%</span>
+        </div>
+        <div class="area-row">
+            <span class="area-lbl" style="min-width:120px;color:${tgtSp.color}">${tgtSp.name} (target)</span>
+            <div class="area-bar-bg"><div class="area-bar-fg" style="width:100%;background:${tgtSp.color}"></div></div>
+            <span class="area-pct">100%</span>
+        </div>
+        <div class="area-row">
+            <span class="area-lbl" style="min-width:120px;color:${srcSp.color}">${srcSp.name} mapped (${strategy})</span>
+            <div class="area-bar-bg"><div class="area-bar-fg" style="width:${Math.min(100,parseFloat(mapRatio))}%;background:${srcSp.color};opacity:0.5"></div></div>
+            <span class="area-pct">${mapRatio}%</span>
+        </div>
+        <hr class="an-sep">
+        <div class="narrative">
+            <strong>${srcSp.name}</strong> covers <strong>${ratio}%</strong> of <strong>${tgtSp.name}</strong> in xy gamut area.
+            ${larger
+                ? `The source is <strong>${(parseFloat(ratio)-100).toFixed(1)}%</strong> larger — colours outside <strong>${tgtSp.name}</strong> must be mapped or clipped.`
+                : `The source falls <strong>${(100-parseFloat(ratio)).toFixed(1)}%</strong> short — some <strong>${tgtSp.name}</strong> colours cannot be represented in the source.`}
+            After <strong>${strategyLabel(strategy)}</strong> mapping, the retained area is <strong>${mapRatio}%</strong> of target.
+        </div>
+    </div>`;
+
+    // Primary table: target ref row + source native + source mapped
+    const tgtRow    = primaryTableRow(tgtPrim, null,     tgtSp.name+' (target)',       tgtSp.color, wp, true);
+    const srcRow    = primaryTableRow(srcPrim, tgtPrim,  srcSp.name+' (source native)', srcSp.color, wp, false);
+    const mapRow    = primaryTableRow(mappedPrim, tgtPrim, srcSp.name+' (mapped)',      srcSp.color+'aa', wp, false);
+    const shiftTable = primaryTable(tgtRow + srcRow + mapRow);
+
+    // Expanded narrative
+    const narrativeHTML = buildNarrative(srcSp, tgtSp, srcPrim, tgtPrim, mappedPrim, wp, ratio, mapRatio, larger);
+
+    content.innerHTML = areaHTML + shiftTable + narrativeHTML;
+}
+
+function strategyLabel(s) {
+    return {clip:'Hard Clip',compress:'Compress',preserve:'Hue-Preserve',chroma:'Chroma Map',relcol:'Relative Colorimetric'}[s]||s;
+}
+
+// ── Expanded narrative builder ────────────────────────────────────
+function buildNarrative(srcSp, tgtSp, srcPrim, tgtPrim, mappedPrim, wp, ratio, mapRatio, larger) {
+    const pNames = { R:'Red', G:'Green', B:'Blue' };
+    const pColors = { R:'#ff6060', G:'#44dd88', B:'#5599ff' };
+
+    // Per-primary analysis: native shift + mapped residual
+    const primaries = {};
+    for (const c of ['R','G','B']) {
+        const native  = describePrimaryShift(c, srcPrim[c],   tgtPrim[c], wp);
+        const residual= describePrimaryShift(c, mappedPrim[c],tgtPrim[c], wp);
+        const nativeSat  = chromaDist(srcPrim[c], wp);
+        const targetSat  = chromaDist(tgtPrim[c], wp);
+        const mappedSat  = chromaDist(mappedPrim[c], wp);
+        const dHue  = parseFloat(native.dHue);
+        const dSat  = parseFloat(native.dSat);
+        const rHue  = parseFloat(residual.dHue);
+        const rSat  = parseFloat(residual.dSat);
+        primaries[c] = { native, residual, dHue, dSat, rHue, rSat, nativeSat, targetSat, mappedSat };
+    }
+
+    // ── Section helpers ───────────────────────────────────────────
+    const fv = (v,d=1) => (v>=0?'+':'')+v.toFixed(d);
+    const abs = (v,d=1) => Math.abs(v).toFixed(d);
+    const significant = (v, threshold=0.5) => Math.abs(v) >= threshold;
+
+    function perceptualImplication(c, dHue, dSat) {
+        // Returns a sentence explaining what the shift means for rendered images
+        const satChange = dSat > 2 ? 'more saturated' : dSat < -2 ? 'less saturated' : null;
+        const imps = [];
+        if (c === 'R') {
+            if (dHue > 3)  imps.push('reds will render with an orange cast — skin tones may appear slightly warm and sunlit scenes more golden');
+            else if (dHue > 0.5) imps.push('reds are marginally warmer — subtle effect on skin tone and warm-light scenes');
+            else if (dHue < -3) imps.push('reds will render with a cool purple/magenta cast — skin tones may appear cooler and shadows more magenta');
+            else if (dHue < -0.5) imps.push('reds are marginally cooler — subtle shift toward magenta in deep reds');
+            else imps.push('red hue is closely matched — negligible cast in red channel');
+            if (satChange === 'more saturated') imps.push('red saturation is higher, which can cause clipping in vivid reds when converting to a narrower space');
+            else if (satChange === 'less saturated') imps.push('red saturation is lower — vivid reds will appear slightly muted');
+        } else if (c === 'G') {
+            if (dHue > 3)  imps.push('greens skew yellow-green — foliage may appear more lime/chartreuse and less pure green');
+            else if (dHue > 0.5) imps.push('greens are marginally warmer/more yellow — subtle shift in foliage and grass tones');
+            else if (dHue < -3) imps.push('greens skew cyan — foliage will appear cooler and slightly teal; this is the most visually impactful channel difference as green spans the peak of luminance sensitivity');
+            else if (dHue < -0.5) imps.push('greens are marginally cooler/more cyan — subtle shift in foliage and nature tones');
+            else imps.push('green hue is closely matched — foliage and mid-range greens will reproduce accurately');
+            if (satChange === 'more saturated') imps.push('the wider green saturation means highly saturated greens (e.g. fresh foliage, vivid studio backdrops) may require more aggressive mapping');
+            else if (satChange === 'less saturated') imps.push('the narrower green primary limits the maximum achievable green saturation — highly saturated greens will be compressed');
+        } else {
+            if (dHue > 3)  imps.push('blues shift toward cyan/teal — sky tones and deep shadows will appear slightly greener');
+            else if (dHue > 0.5) imps.push('blues are marginally more cyan — subtle shift in sky and blue shadow tones');
+            else if (dHue < -3) imps.push('blues shift toward violet/indigo — sky tones will appear cooler and more purple; deep shadows may show a violet cast');
+            else if (dHue < -0.5) imps.push('blues are marginally more violet — subtle deepening of blue tones');
+            else imps.push('blue hue is closely matched — sky and shadow blues will reproduce accurately');
+            if (satChange === 'more saturated') imps.push('the wider blue primary can capture more vivid blues than the target can reproduce — highly saturated blues will require clipping or compression');
+            else if (satChange === 'less saturated') imps.push('the narrower blue primary limits peak blue saturation — vivid blues will be slightly desaturated');
+        }
+        return imps.join('; ');
+    }
+
+    function mappingOutcome(c, rHue, rSat, strat) {
+        const hueResolved = !significant(rHue, 0.5);
+        const satResolved = !significant(rSat, 2);
+        if (hueResolved && satResolved) {
+            return `After <strong>${strategyLabel(strat)}</strong>, the ${pNames[c].toLowerCase()} primary lands essentially on target — residual error is negligible.`;
+        }
+        const parts = [];
+        if (!hueResolved) {
+            const dir = rHue > 0 ? 'warmer' : 'cooler';
+            parts.push(`a residual hue offset of <strong>${fv(rHue)}°</strong> (${dir})`);
+        }
+        if (!satResolved) {
+            const dir = rSat > 0 ? 'above' : 'below';
+            parts.push(`chroma still <strong>${fv(rSat)}‰</strong> ${dir} target`);
+        }
+        return `After <strong>${strategyLabel(strat)}</strong>, the ${pNames[c].toLowerCase()} primary retains ${parts.join(' and ')} — ${
+            strat==='compress' ? 'the uniform scale preserves hue but does not eliminate the angular offset from target'
+          : strat==='clip'     ? 'clipping brings the primary to the boundary but at a different hue angle than the target'
+          : strat==='preserve' ? 'hue angle is preserved at the cost of landing at a different boundary point than the target primary'
+          : strat==='chroma'   ? 'proportional remapping reduces but may not fully eliminate the offset for primaries far from the target hue angle'
+          : 'white point translation accounts for illuminant difference but residual gamut mismatch remains'}.`;
+    }
+
+    // ── Overall context sentence ──────────────────────────────────
+    const wideNarrow = larger
+        ? `<strong>${srcSp.name}</strong> is a <strong>wider</strong> gamut than <strong>${tgtSp.name}</strong> — it encodes a larger range of saturated colours. Converting to the target requires compression or clipping of out-of-gamut primaries.`
+        : `<strong>${srcSp.name}</strong> is a <strong>narrower</strong> gamut than <strong>${tgtSp.name}</strong> — the source cannot represent the full range of colours the target can encode. Mapping in this direction involves fitting a smaller triangle inside a larger one; no primaries are clipped.`;
+
+    const wpNote = (srcSp.nativeWP !== tgtSp.nativeWP)
+        ? `<strong>Note:</strong> the source and target have different native white points (${srcSp.nativeWP.toUpperCase()} vs ${tgtSp.nativeWP.toUpperCase()}). Bradford adaptation has been applied to both sets of primaries to place them on the common <strong>${WHITE_POINTS[selectedWP].name}</strong> display white point. The Relative Colorimetric strategy additionally accounts for this white point difference explicitly in its mapping.`
+        : `Both spaces share a <strong>${srcSp.nativeWP.toUpperCase()}</strong> native white point, so no white point shift is introduced by the conversion itself — any primary differences are purely due to the choice of primaries, not illuminant.`;
+
+    // ── Per-primary paragraphs ────────────────────────────────────
+    let primHTML = '';
+    for (const c of ['R','G','B']) {
+        const { dHue, dSat, rHue, rSat, native } = primaries[c];
+        const hueInsig = !significant(dHue, 0.5);
+        const satInsig = !significant(dSat, 2);
+
+        const nativeDesc = hueInsig && satInsig
+            ? `The <strong>${pNames[c].toLowerCase()}</strong> primaries are essentially identical (Δhue ${fv(dHue)}°, Δchroma ${fv(dSat)}‰) — no meaningful shift in this channel.`
+            : `The source <strong>${pNames[c].toLowerCase()}</strong> primary is ${native.desc} relative to the target (Δhue <strong>${fv(dHue)}°</strong>, Δchroma <strong>${fv(dSat)}‰</strong>). ${perceptualImplication(c, dHue, dSat)}.`;
+
+        const mapDesc = mappingOutcome(c, rHue, rSat, strategy);
+
+        primHTML += `<div class="narr-primary">
+            <span class="narr-label" style="color:${pColors[c]}">${pNames[c]}</span>
+            <span class="narr-body">${nativeDesc} ${mapDesc}</span>
+        </div>`;
+    }
+
+    // ── Summary insight ───────────────────────────────────────────
+    const gShift = primaries['G'];
+    const dominantChannel = [
+        { c:'R', v:Math.abs(gShift.dHue) },
+        { c:'G', v:Math.abs(primaries['G'].dHue) },
+        { c:'B', v:Math.abs(primaries['B'].dHue) }
+    ].reduce((a,b)=>a.v>b.v?a:b).c;
+
+    const allNegligible = ['R','G','B'].every(c => !significant(primaries[c].dHue,0.5) && !significant(primaries[c].dSat,2));
+    const summaryInsight = allNegligible
+        ? `All three primaries are very closely matched between ${srcSp.name} and ${tgtSp.name}. These spaces are near-equivalent in chromaticity; any rendering differences will come from white point handling and tone reproduction, not primary placement.`
+        : `The <strong>${pNames[dominantChannel].toLowerCase()}</strong> primary shows the largest angular divergence between these two spaces. In practical conversion workflows, this is the channel most likely to produce visible differences in saturated colours — particularly in ${dominantChannel==='R'?'skin tones, warm highlights, and red objects':dominantChannel==='G'?'foliage, grass, green studio environments, and nature photography':'sky tones, shadows, deep blues, and scenes with strong cool lighting'}. The choice of mapping strategy most strongly affects how this primary is handled.`;
+
+    return `<div class="an-block" style="margin-top:10px;">
+        <h3>Shift Analysis &amp; Perceptual Implications</h3>
+        <div class="narr-section">
+            <div class="narr-context">${wideNarrow}</div>
+            <div class="narr-context" style="margin-top:6px;">${wpNote}</div>
+        </div>
+        <hr class="an-sep">
+        ${primHTML}
+        <hr class="an-sep">
+        <div class="narr-context narr-summary">${summaryInsight}</div>
+    </div>`;
+}
+
+// ── Legend ────────────────────────────────────────────────────────
+function buildLegend() {
+    const el=document.getElementById('legendContainer');
+    el.innerHTML='';
+    const add=(color,label,dashed=false)=>{
+        const item=document.createElement('div'); item.className='legend-item';
+        const sw=document.createElement('div'); sw.className='legend-swatch'+(dashed?' dashed':'');
+        sw.style.background=dashed?'transparent':color;
+        if(dashed)sw.style.borderBottomColor=color;
+        item.appendChild(sw);
+        const span=document.createElement('span'); span.textContent=label; item.appendChild(span);
+        el.appendChild(item);
+    };
+    const src=SPACES[sourceKey], tgt=SPACES[targetKey];
+    add(src.color, `Source: ${src.name}`);
+    add(src.color, `Source mapped (${strategy})`, true);
+    add(tgt.color, `Target: ${tgt.name}`, true);
+    add('#facc15', `WP: ${WHITE_POINTS[selectedWP].name}`);
+}
+
+// ── Title ─────────────────────────────────────────────────────────
+function updateTitle() {
+    const t=`${SPACES[sourceKey].name} → ${SPACES[targetKey].name} · ${WHITE_POINTS[selectedWP].name} · ${strategy}`;
+    document.getElementById('plotTitle').textContent=t;
+    document.getElementById('ciePlotTitle').textContent=`CIE 1931 xy · ${t}`;
+    document.getElementById('polarTitle').textContent=`Polar xy · ${t}`;
+}
+
+function refresh(){ rebuildAdapted(); updateTitle(); drawAll(); buildLegend(); buildAnalysis(); }
+
+// ── Dropdowns ─────────────────────────────────────────────────────
+function buildSpaceSelects() {
+    // Group spaces by white point for optgroup organisation
+    const groups = { 'd65':'D65 Native', 'd50':'D50 Native', 'd60':'D60 Native (ACES)' };
+    const grouped = { d65:[], d50:[], d60:[] };
+    for (const [key, sp] of Object.entries(SPACES)) {
+        grouped[sp.nativeWP].push({ key, sp });
+    }
+
+    function buildOptions(selectedKey) {
+        let html = '';
+        for (const [wp, label] of Object.entries(groups)) {
+            if (!grouped[wp].length) continue;
+            html += `<optgroup label="${label}">`;
+            for (const { key, sp } of grouped[wp]) {
+                html += `<option value="${key}"${key === selectedKey ? ' selected' : ''}>${sp.name}</option>`;
+            }
+            html += `</optgroup>`;
+        }
+        return html;
+    }
+
+    document.getElementById('sourceSelect').innerHTML = buildOptions(sourceKey);
+    document.getElementById('targetSelect').innerHTML = buildOptions(targetKey);
+}
+
+function updateSpaceSelects() {
+    document.getElementById('sourceSelect').value = sourceKey;
+    document.getElementById('targetSelect').value = targetKey;
+}
+
+// ── CIE resize ────────────────────────────────────────────────────
+function handleCieResize() {
+    const wrap=document.getElementById('ciePlotWrap');
+    if(!wrap.offsetWidth) return;
+    const w=wrap.offsetWidth;
+    cieCanvas.width=Math.round(w); cieCanvas.height=Math.round(w*9/8);
+    cieW=cieCanvas.width; cieH=cieCanvas.height;
+    if(currentView==='cie') drawCie();
+}
+
+// ── Event wiring ──────────────────────────────────────────────────
+document.querySelectorAll('.wp-btn').forEach(b=>b.addEventListener('click',()=>{
+    selectedWP=b.dataset.wp; currentWP=WHITE_POINTS[selectedWP];
+    document.querySelectorAll('.wp-btn').forEach(x=>x.classList.toggle('active',x.dataset.wp===selectedWP));
+    refresh();
+}));
+document.querySelectorAll('.view-btn').forEach(b=>b.addEventListener('click',()=>{
+    currentView=b.dataset.view;
+    document.querySelectorAll('.view-btn').forEach(x=>x.classList.toggle('active',x.dataset.view===currentView));
+    document.getElementById('ciePlotWrap').style.display=currentView==='cie'?'block':'none';
+    document.getElementById('polarPlotWrap').style.display=currentView==='polar'?'block':'none';
+    drawAll();
+}));
+document.querySelectorAll('.strat-btn').forEach(b=>b.addEventListener('click',()=>{
+    strategy=b.dataset.strategy;
+    document.querySelectorAll('.strat-btn').forEach(x=>x.classList.toggle('active',x.dataset.strategy===strategy));
+    refresh();
+}));
+
+// Cursor coordinate display on CIE canvas
+cieCanvas.addEventListener('mousemove',e=>{
+    const rect=cieCanvas.getBoundingClientRect();
+    const scaleX=cieCanvas.width/rect.width, scaleY=cieCanvas.height/rect.height;
+    const px=(e.clientX-rect.left)*scaleX, py=(e.clientY-rect.top)*scaleY;
+    const xy=pixelToCie(px,py);
+    if(xy.x>=CIE_X0&&xy.x<=CIE_X1&&xy.y>=CIE_Y0&&xy.y<=CIE_Y1){
+        const ang=Math.atan2(xy.y-currentWP.y,xy.x-currentWP.x)*180/Math.PI;
+        document.getElementById('cursorCoord').textContent=`xy (${xy.x.toFixed(4)}, ${xy.y.toFixed(4)})  θ=${Math.round((ang+360)%360)}°`;
+    } else {
+        document.getElementById('cursorCoord').textContent='';
+    }
+});
+
+// ── Text report export ────────────────────────────────────────────
+function buildTextReport() {
+    if (sourceKey === targetKey) return '';
+    const srcSp = SPACES[sourceKey], tgtSp = SPACES[targetKey], wp = currentWP;
+    const srcPrim = getSourcePrim(), tgtPrim = getTargetPrim();
+    const mappedPrim = applyMapping(srcPrim, tgtPrim, strategy, wp);
+
+    const srcArea  = triangleArea(srcPrim);
+    const tgtArea  = triangleArea(tgtPrim);
+    const mapArea  = triangleArea(mappedPrim);
+    const areaPct  = (srcArea / tgtArea * 100).toFixed(1);
+    const mapPct   = (mapArea / tgtArea * 100).toFixed(1);
+    const larger   = srcArea >= tgtArea;
+
+    const w  = 60;
+    const hr = '─'.repeat(w);
+    const hr2= '═'.repeat(w);
+    const pad = (s, n) => s.length >= n ? s : s + ' '.repeat(n - s.length);
+    const fv  = (v, d=1) => (parseFloat(v) >= 0 ? '+' : '') + parseFloat(v).toFixed(d);
+    const now = new Date().toISOString().replace('T',' ').slice(0,19) + ' UTC';
+
+    const strategyNames = {
+        clip:'Hard Clip', compress:'Compress', preserve:'Hue-Preserve',
+        chroma:'Chroma Map', relcol:'Rel. Colorimetric'
+    };
+
+    let lines = [];
+    lines.push(hr2);
+    lines.push('  COLOUR SPACE GAMUT MAPPING — ANALYSIS REPORT');
+    lines.push(hr2);
+    lines.push(`  Generated : ${now}`);
+    lines.push(`  Source    : ${srcSp.name}  (native WP: ${srcSp.nativeWP.toUpperCase()})`);
+    lines.push(`  Target    : ${tgtSp.name}  (native WP: ${tgtSp.nativeWP.toUpperCase()})`);
+    lines.push(`  Strategy  : ${strategyNames[strategy]}`);
+    lines.push(`  Display WP: ${WHITE_POINTS[selectedWP].name}`);
+    lines.push(hr2);
+
+    // ── Gamut area ────────────────────────────────────────────────
+    lines.push('');
+    lines.push('  GAMUT AREA  (xy shoelace × 10⁴)');
+    lines.push(hr);
+    lines.push(`  ${pad(srcSp.name + ' native', 24)}  ${(srcArea * 1e4).toFixed(3)}   ${areaPct}% of target`);
+    lines.push(`  ${pad(tgtSp.name + ' (target)', 24)}  ${(tgtArea * 1e4).toFixed(3)}   100.0%`);
+    lines.push(`  ${pad(srcSp.name + ' mapped', 24)}  ${(mapArea * 1e4).toFixed(3)}   ${mapPct}% of target`);
+    lines.push('');
+    if (larger) {
+        lines.push(`  Source is ${(parseFloat(areaPct)-100).toFixed(1)}% larger than target.`);
+        lines.push(`  Colours outside target must be mapped or clipped.`);
+    } else {
+        lines.push(`  Source is ${(100-parseFloat(areaPct)).toFixed(1)}% smaller than target.`);
+        lines.push(`  Some target colours cannot be represented in the source.`);
+    }
+    lines.push(`  After ${strategyNames[strategy]}, retained area = ${mapPct}% of target.`);
+
+    // ── Per-primary table ─────────────────────────────────────────
+    lines.push('');
+    lines.push('  PRIMARY ANALYSIS  (all deltas vs target [ref])');
+    lines.push(hr);
+
+    const colH = `  ${ pad('Space', 28) }  ${ pad('Primary', 3) }  ${ pad('x', 7) }  ${ pad('y', 7) }  ${ pad('Δhue°', 7) }  ${ pad('Δchroma‰', 9) }  ${ pad('Δx‰', 6) }  ${ pad('Δy‰', 6) }  Shift`;
+    lines.push(colH);
+    lines.push('  ' + '─'.repeat(w - 2));
+
+    const rows = [
+        { label: tgtSp.name + ' [ref]', prim: tgtPrim, refPrim: null, isRef: true },
+        { label: srcSp.name + ' native', prim: srcPrim, refPrim: tgtPrim, isRef: false },
+        { label: srcSp.name + ' mapped', prim: mappedPrim, refPrim: tgtPrim, isRef: false },
+    ];
+
+    for (const row of rows) {
+        for (const c of ['R','G','B']) {
+            const pt = row.prim[c];
+            const nameCol = c === 'R' ? pad(row.label, 28) : pad('', 28);
+            if (row.isRef) {
+                lines.push(`  ${nameCol}  ${c}    ${pt.x.toFixed(4)}  ${pt.y.toFixed(4)}  ${'[ref]'.padStart(7)}  ${'-'.padStart(9)}  ${'-'.padStart(6)}  ${'-'.padStart(6)}  reference`);
+            } else {
+                const info = describePrimaryShift(c, pt, row.refPrim[c], wp);
+                lines.push(`  ${nameCol}  ${c}    ${pt.x.toFixed(4)}  ${pt.y.toFixed(4)}  ${fv(info.dHue).padStart(7)}  ${fv(info.dSat).padStart(9)}  ${fv(info.dX).padStart(6)}  ${fv(info.dY).padStart(6)}  ${info.desc}`);
+            }
+        }
+        if (!row.isRef) lines.push('  ' + '·'.repeat(w - 2));
+    }
+
+    // ── Narrative ─────────────────────────────────────────────────
+    lines.push('');
+    lines.push('  NARRATIVE SUMMARY');
+    lines.push(hr);
+
+    const pColors = { R:'Red', G:'Green', B:'Blue' };
+    for (const c of ['R','G','B']) {
+        const nativeInfo = describePrimaryShift(c, srcPrim[c], tgtPrim[c], wp);
+        const mappedInfo = describePrimaryShift(c, mappedPrim[c], tgtPrim[c], wp);
+
+        const srcXY  = `(${srcPrim[c].x.toFixed(4)}, ${srcPrim[c].y.toFixed(4)})`;
+        const tgtXY  = `(${tgtPrim[c].x.toFixed(4)}, ${tgtPrim[c].y.toFixed(4)})`;
+        const mapXY  = `(${mappedPrim[c].x.toFixed(4)}, ${mappedPrim[c].y.toFixed(4)})`;
+
+        lines.push('');
+        lines.push(`  ${pColors[c]} Primary`);
+        lines.push(`    Target  ${tgtXY}`);
+        lines.push(`    Native  ${srcXY}  →  ${nativeInfo.desc}  (Δhue ${fv(nativeInfo.dHue)}°, Δchroma ${fv(nativeInfo.dSat)}‰)`);
+        lines.push(`    Mapped  ${mapXY}  →  ${mappedInfo.desc}  (Δhue ${fv(mappedInfo.dHue)}°, Δchroma ${fv(mappedInfo.dSat)}‰)`);
+    }
+
+    lines.push('');
+    lines.push(hr2);
+    lines.push(`  Colour Space Gamut Mapping Tool v1  ·  ${srcSp.name} → ${tgtSp.name}  ·  ${strategyNames[strategy]}  ·  WP ${WHITE_POINTS[selectedWP].name}`);
+    lines.push(hr2);
+
+    return lines.join('\n');
+}
+
+function exportReport() {
+    const text = buildTextReport();
+    if (!text) return;
+    const srcSp = SPACES[sourceKey], tgtSp = SPACES[targetKey];
+    const stratSlug = strategy.replace(/[^a-z]/g,'');
+    const filename = `gamut_${srcSp.name.replace(/\s+/g,'_')}_to_${tgtSp.name.replace(/\s+/g,'_')}_${stratSlug}.txt`;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+document.getElementById('exportBtn').addEventListener('click', exportReport);
+
+document.getElementById('sourceSelect').addEventListener('change', e => {
+    const key = e.target.value;
+    if (key === targetKey) { e.target.value = sourceKey; return; }
+    sourceKey = key; refresh();
+});
+document.getElementById('targetSelect').addEventListener('change', e => {
+    const key = e.target.value;
+    if (key === sourceKey) { e.target.value = targetKey; return; }
+    targetKey = key; refresh();
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+buildSpaceSelects();
+rebuildAdapted();
+updateTitle();
+buildLegend();
+buildAnalysis();
+setTimeout(handleCieResize, 80);
+window.addEventListener('resize', handleCieResize);
+
+})();
+</script>
+</body>
+</html>
